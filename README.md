@@ -1,4 +1,4 @@
-# Durkan Regen v4 — Resident App + Back Office
+# Durkan Regen v4 — Resident App + RLO
 
 ## What's new in v4
 - **Access code login** — each resident gets a unique code (e.g. `DRK-F14-2847`) from their welcome letter. They can only see their own flat's appointments.
