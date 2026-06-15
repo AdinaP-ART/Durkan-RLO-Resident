@@ -1,797 +1,658 @@
 /* ============================================================
-   app.js — Durkan Regen v4
-   Features: access code login · real Excel upload (SheetJS)
-             slot locking · resident-scoped views · feedback
+   app.js — Durkan Regen v5
+   Two separate logins: resident (access code) + RLO (passcode)
+   Defect reporting · slot locking · Excel upload · feedback
    ============================================================ */
 
-/* ---- Runtime state ---- */
-const pendingSlots = {}; // schedIdx → { idx, label }
-const starRatings  = {}; // questionIndex → starValue
+const pendingSlots={};
+const starRatings={};
+let defectIdCounter=1;
+let selectedPhoto=null;
 
-/* ---- Nav state ---- */
-let mode   = 'res';
-let curRes = 1;   // default to home after login
-let curBo  = 0;
+/* ============================================================
+   LANDING — choose role
+============================================================ */
+function startAs(role){
+  document.getElementById('landing').style.display='none';
+  if(role==='res'){
+    document.getElementById('res-shell').classList.add('active');
+    buildResNav(0);
+  } else {
+    document.getElementById('rlo-shell').classList.add('active');
+    buildRloNav(0);
+  }
+}
 
-const resPages = ['rp-onboard', 'rp-home', 'rp-appts', 'rp-message', 'rp-faq', 'rp-feedback'];
-const boPages  = ['bp-dashboard', 'bp-upload', 'bp-messages', 'bp-reports'];
-const resNav   = ['Home', 'My Appointments', 'Message Durkan', 'FAQ & Guides', 'Rate Work'];
-const boNav    = ['1. Dashboard', '2. Upload Schedule', '3. Messages', '4. Reports'];
+function logout(role){
+  if(role==='res'){
+    db.currentResident=null;
+    document.getElementById('res-chip').style.display='none';
+    document.getElementById('res-shell').classList.remove('active');
+    resShowPage('rp-login');
+    buildResNav(0);
+  } else {
+    db.currentRLO=null;
+    document.getElementById('rlo-chip').style.display='none';
+    document.getElementById('rlo-shell').classList.remove('active');
+    rloShowPage('bp-login');
+    buildRloNav(0);
+  }
+  document.getElementById('landing').style.display='flex';
+}
+
+/* ============================================================
+   RESIDENT NAV
+============================================================ */
+const resPages=['rp-login','rp-home','rp-appts','rp-defects','rp-message','rp-faq','rp-feedback'];
+const resNavDef=[
+  {i:1,icon:'ti-home',          label:'Home'},
+  {i:2,icon:'ti-calendar',      label:'My Appointments'},
+  {i:3,icon:'ti-alert-triangle',label:'Report Defect'},
+  {i:4,icon:'ti-mail',          label:'Message Durkan'},
+  {i:5,icon:'ti-help',          label:'FAQ & Guides'},
+  {i:6,icon:'ti-star',          label:'Rate Work'},
+];
+let curResPage=0;
+
+function buildResNav(cur){
+  document.getElementById('res-nav').innerHTML=resNavDef.map(n=>
+    `<button class="si${n.i===cur?' on':''}" onclick="rNav(${n.i})"><i class="ti ${n.icon}"></i>${n.label}</button>`
+  ).join('');
+  const s=document.getElementById('res-story');
+  if(s) s.textContent=db.currentResident
+    ?`Logged in as ${db.currentResident.resident} · ${db.currentResident.flat}. Your code locks you to your flat only.`
+    :'Enter your access code from your welcome letter to get started.';
+}
+
+function resShowPage(id){
+  document.querySelectorAll('#res-shell .page').forEach(p=>p.classList.remove('active'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('active');
+}
+
+function rNav(i){
+  if(i>0&&!db.currentResident){resShowPage('rp-login');buildResNav(0);return;}
+  curResPage=i;
+  resShowPage(resPages[i]);
+  buildResNav(i);
+  if(i===2) renderResAppts();
+  if(i===3) renderResDefects();
+  if(i===6) renderFeedbackScreen();
+}
+
+/* ============================================================
+   RLO NAV
+============================================================ */
+const rloPages=['bp-login','bp-dashboard','bp-upload','bp-defects','bp-messages','bp-reports'];
+const rloNavDef=[
+  {i:1,icon:'ti-layout-dashboard',label:'Dashboard'},
+  {i:2,icon:'ti-upload',          label:'Upload Schedule'},
+  {i:3,icon:'ti-alert-triangle',  label:'Defects'},
+  {i:4,icon:'ti-mail',            label:'Messages'},
+  {i:5,icon:'ti-chart-bar',       label:'Reports'},
+];
+let curRloPage=0;
+
+function buildRloNav(cur){
+  document.getElementById('rlo-nav').innerHTML=rloNavDef.map(n=>
+    `<button class="si${n.i===cur?' on':''}" onclick="bNav(${n.i})"><i class="ti ${n.icon}"></i>${n.label}</button>`
+  ).join('');
+}
+
+function rloShowPage(id){
+  document.querySelectorAll('#rlo-shell .page').forEach(p=>p.classList.remove('active'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('active');
+}
+
+function bNav(i){
+  if(i>0&&!db.currentRLO){rloShowPage('bp-login');buildRloNav(0);return;}
+  curRloPage=i;
+  rloShowPage(rloPages[i]);
+  buildRloNav(i);
+  if(i===1) renderDashboard();
+  if(i===3) renderRloDefects();
+  if(i===5) renderReports();
+}
+
+/* ============================================================
+   LOGIN
+============================================================ */
+function resLogin(){
+  const raw=document.getElementById('res-code').value.trim().toUpperCase();
+  const err=document.getElementById('res-err');
+  const inp=document.getElementById('res-code');
+  const demo=DEMO_CODES[raw];
+  const sched=db.schedule.find(e=>e.accessCode===raw);
+  const match=demo||sched;
+  if(match){
+    const flat=match.flat; const resident=match.resident;
+    db.currentResident={flat,resident,accessCode:raw};
+    document.getElementById('r-hello').textContent='Hello, '+resident.split(' ')[0];
+    document.getElementById('r-addr').textContent=flat+' · Highbury Gardens';
+    document.getElementById('r-appts-hdr').textContent=flat+' · Highbury Gardens';
+    const chip=document.getElementById('res-chip');
+    chip.textContent='🔒 '+flat; chip.style.display='inline-block';
+    renderResidentHome();
+    rNav(1);
+  } else {
+    inp.classList.add('error'); err.style.display='block';
+    setTimeout(()=>{inp.classList.remove('error');err.style.display='none';},3000);
+  }
+}
+
+function rloLogin(){
+  const raw=document.getElementById('rlo-code').value.trim().toUpperCase();
+  const err=document.getElementById('rlo-err');
+  const match=RLO_CODES[raw];
+  if(match){
+    db.currentRLO=match;
+    const chip=document.getElementById('rlo-chip');
+    chip.textContent='👤 '+match.name+' · '+match.role; chip.style.display='inline-block';
+    bNav(1);
+  } else {
+    err.style.display='block';
+    setTimeout(()=>err.style.display='none',3000);
+  }
+}
 
 /* ============================================================
    UTILITY
-   ============================================================ */
-
-function generateCode(flat) {
-  const num  = flat.replace(/\D/g, '').padStart(2, '0');
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  return `DRK-F${num}-${rand}`;
+============================================================ */
+function genCode(flat){
+  const n=flat.replace(/\D/g,'').padStart(2,'0');
+  return `DRK-F${n}-${Math.floor(1000+Math.random()*9000)}`;
 }
-
-function showToast(id, msg, cls = 't-j', dur = 3500) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.className = `toast ${cls}`;
-  el.textContent = msg;
-  el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, dur);
+function showToast(id,msg,cls='t-j',dur=3500){
+  const el=document.getElementById(id);if(!el)return;
+  el.className=`toast ${cls}`;el.textContent=msg;el.style.display='block';
+  setTimeout(()=>el.style.display='none',dur);
 }
-
-function showPhoneToast(id, msg, isErr = false) {
-  const t = document.getElementById(id);
-  if (!t) return;
-  t.className = isErr ? 'ph-toast err' : 'ph-toast';
-  t.textContent = msg;
-  t.style.display = 'block';
-  setTimeout(() => { t.style.display = 'none'; }, 3500);
+function phToast(id,msg,type=''){
+  const t=document.getElementById(id);if(!t)return;
+  t.className='ph-toast'+(type?' '+type:'');t.textContent=msg;t.style.display='block';
+  setTimeout(()=>t.style.display='none',3500);
+}
+function toggleFaq(el){
+  const a=el.querySelector('.faq-a');
+  if(a) a.style.display=a.style.display==='block'?'none':'block';
 }
 
 /* ============================================================
-   LOGIN / LOGOUT
-   ============================================================ */
-
-function tryLogin() {
-  const raw = document.getElementById('access-code').value.trim().toUpperCase();
-  const err = document.getElementById('ob-err');
-  const inp = document.getElementById('access-code');
-
-  // Check hardcoded demo codes
-  if (DEMO_CODES[raw]) {
-    loginSuccess(raw, DEMO_CODES[raw].flat, DEMO_CODES[raw].resident);
-    return;
-  }
-
-  // Check any schedule-generated codes
-  const match = db.schedule.find(e => e.accessCode === raw);
-  if (match) {
-    loginSuccess(raw, match.flat, match.resident);
-    return;
-  }
-
-  // Invalid
-  inp.classList.add('error');
-  err.style.display = 'block';
-  setTimeout(() => {
-    inp.classList.remove('error');
-    err.style.display = 'none';
-  }, 3000);
-}
-
-function loginSuccess(code, flat, resident) {
-  db.currentResident = { flat, resident, accessCode: code };
-
-  // Update phone header
-  document.getElementById('r-hello').textContent    = 'Hello, ' + resident.split(' ')[0];
-  document.getElementById('r-address').textContent  = flat + ' · Highbury Gardens';
-  document.getElementById('r-appts-title').textContent = flat + ' · Highbury Gardens';
-
-  // Show logged-in chip in header
-  const chip = document.getElementById('logged-in-chip');
-  chip.textContent   = '🔒 ' + flat;
-  chip.style.display = 'inline-block';
-
-  renderResidentView();
-  goRes(1); // go to home
-}
-
-function logout() {
-  db.currentResident = null;
-  document.getElementById('logged-in-chip').style.display = 'none';
-  document.getElementById('access-code').value = '';
-  showPage('rp-onboard');
-  curRes = 1;
-  buildNav();
-}
-
-function smsFallback() {
-  alert('SMS fallback: A code will be sent to your registered mobile number. Please contact your RLO if you have not received one.');
-}
-
-/* ============================================================
-   NAVIGATION
-   ============================================================ */
-
-function setMode(m) {
-  mode = m;
-  document.getElementById('btn-res').classList.toggle('on', m === 'res');
-  document.getElementById('btn-bo').classList.toggle('on',  m === 'bo');
-
-  if (m === 'res') {
-    showPage(db.currentResident ? resPages[curRes] : 'rp-onboard');
-  } else {
-    showPage(boPages[curBo]);
-    refreshBo(curBo);
-  }
-  buildNav();
-}
-
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const el = document.getElementById(id);
-  if (el) el.classList.add('active');
-}
-
-function buildNav() {
-  const nav = mode === 'res' ? resNav : boNav;
-  const cur = mode === 'res' ? curRes - 1 : curBo; // resNav offset: skip onboard
-
-  document.getElementById('s-head').textContent = mode === 'res' ? 'RESIDENT' : 'BACK OFFICE';
-
-  document.getElementById('s-nav').innerHTML = nav
-    .map((l, i) => `<button class="si${i === cur ? ' on' : ''}" onclick="navClick(${i})">${l}</button>`)
-    .join('');
-
-  document.getElementById('s-story').innerHTML = mode === 'res'
-    ? `<b style="font-size:10px;text-transform:uppercase">Resident view</b><br>${
-        db.currentResident
-          ? `Logged in as ${db.currentResident.resident} · ${db.currentResident.flat}.<br>Your code locks you to your flat only.`
-          : 'Enter your access code from your welcome letter to get started.'
-      }`
-    : '<b style="font-size:10px;text-transform:uppercase">RLO back office</b><br>Upload schedule → access codes generated → residents log in to their flat only → dates lock on confirmation.';
-}
-
-function navClick(i) {
-  if (mode === 'res') {
-    const pageIdx = i + 1; // offset: resPages[0] = onboard
-    if (!db.currentResident) { showPage('rp-onboard'); return; }
-    curRes = pageIdx;
-    showPage(resPages[pageIdx]);
-    if (pageIdx === 2) renderResAppts();
-    if (pageIdx === 5) renderFeedbackScreen();
-  } else {
-    curBo = i;
-    showPage(boPages[i]);
-    refreshBo(i);
-  }
-  buildNav();
-}
-
-function goRes(i) {
-  if (i > 0 && !db.currentResident) { showPage('rp-onboard'); return; }
-  curRes = i;
-  showPage(resPages[i]);
-  buildNav();
-  if (i === 2) renderResAppts();
-  if (i === 5) renderFeedbackScreen();
-}
-
-function goBo(i) {
-  curBo = i;
-  showPage(boPages[i]);
-  buildNav();
-  refreshBo(i);
-}
-
-function refreshBo(i) {
-  if (i === 0) renderDashboard();
-  if (i === 3) renderReports();
-}
-
-/* ============================================================
-   EXCEL UPLOAD — real SheetJS parsing
-   ============================================================ */
-
-function handleFile(evt) {
-  const file = evt.target.files[0];
-  if (!file) return;
-
-  const prog = document.getElementById('upload-prog');
-  const lbl  = document.getElementById('upload-prog-lbl');
-  const fill = document.getElementById('prog-fill');
-
-  prog.style.display = 'block';
-  fill.style.width   = '0%';
-  lbl.textContent    = `Reading ${file.name}...`;
-
-  // Animate progress bar while reading
-  let pct = 0;
-  const iv = setInterval(() => { pct = Math.min(pct + 15, 90); fill.style.width = pct + '%'; }, 100);
-
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    clearInterval(iv);
-    fill.style.width = '100%';
-    setTimeout(() => {
-      prog.style.display = 'none';
-      fill.style.width   = '0%';
-      try {
-        const wb   = XLSX.read(e.target.result, { type: 'array' });
-        const ws   = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        parseRows(rows, file.name);
-      } catch (err) {
-        showToast('parse-toast', 'Could not read file. Please check the column format.', 't-r');
-      }
-    }, 300);
+   EXCEL UPLOAD
+============================================================ */
+function handleFile(evt){
+  const file=evt.target.files[0];if(!file)return;
+  const prog=document.getElementById('upload-prog');
+  const fill=document.getElementById('prog-fill');
+  const lbl=document.getElementById('prog-lbl');
+  prog.style.display='block';fill.style.width='0%';
+  lbl.textContent=`Reading ${file.name}...`;
+  let pct=0;
+  const iv=setInterval(()=>{pct=Math.min(pct+15,90);fill.style.width=pct+'%';},100);
+  const reader=new FileReader();
+  reader.onload=function(e){
+    clearInterval(iv);fill.style.width='100%';
+    setTimeout(()=>{
+      prog.style.display='none';fill.style.width='0%';
+      try{
+        const wb=XLSX.read(e.target.result,{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+        parseRows(rows,file.name);
+      }catch(err){showToast('parse-toast','Could not read file. Check column format.','t-r');}
+    },300);
   };
   reader.readAsArrayBuffer(file);
 }
 
-function parseRows(rows, filename) {
-  // Flexible column matching — accepts common variations
-  const get = (row, ...keys) => {
-    for (const k of keys) {
-      const found = Object.keys(row).find(rk =>
-        rk.toLowerCase().replace(/[\s_-]/g, '') === k.toLowerCase().replace(/[\s_-]/g, '')
-      );
-      if (found && row[found]) return String(row[found]).trim();
-    }
-    return '';
-  };
-
-  const parsed = rows
-    .map(r => ({
-      flat:     get(r, 'Flat', 'FlatNo', 'FlatNumber', 'Unit'),
-      resident: get(r, 'Resident', 'ResidentName', 'Resident Name', 'Name', 'Tenant'),
-      workType: get(r, 'WorkType', 'Work Type', 'Work', 'Type', 'Job', 'JobType'),
-      slots: [
-        get(r, 'Date1', 'Date 1', 'Option1', 'Option 1', 'Slot1', 'Slot 1'),
-        get(r, 'Date2', 'Date 2', 'Option2', 'Option 2', 'Slot2', 'Slot 2'),
-        get(r, 'Date3', 'Date 3', 'Option3', 'Option 3', 'Slot3', 'Slot 3'),
-      ].filter(Boolean),
-      status: 'pending', confirmedDate: '', locked: false,
-      accessCode: '',
-    }))
-    .filter(r => r.flat);
-
-  if (!parsed.length) {
-    showToast('parse-toast', 'No valid rows found. Check your column headers match the template.', 't-r');
-    return;
+function getCol(row,...keys){
+  for(const k of keys){
+    const f=Object.keys(row).find(rk=>rk.toLowerCase().replace(/[\s_-]/g,'')===k.toLowerCase().replace(/[\s_-]/g,''));
+    if(f&&row[f])return String(row[f]).trim();
   }
-
-  // Assign unique access codes
-  parsed.forEach(e => { e.accessCode = generateCode(e.flat); });
-  db.schedule = parsed;
-  renderEntryTable();
-  showToast('parse-toast', `✓ ${filename} — ${parsed.length} entries loaded with access codes. Review below then publish.`, 't-g', 6000);
+  return '';
 }
 
-function loadDemo() {
-  // Deep copy and generate codes for any blanks
-  db.schedule = DEMO_SCHEDULE.map(e => ({
-    ...e,
-    accessCode: e.accessCode || generateCode(e.flat),
-  }));
+function parseRows(rows,filename){
+  const parsed=rows.map(r=>({
+    flat:getCol(r,'Flat','FlatNo','Unit'),
+    resident:getCol(r,'Resident','ResidentName','Name','Tenant'),
+    workType:getCol(r,'WorkType','Work Type','Work','Type','Job'),
+    slots:[
+      getCol(r,'Date1','Date 1','Option1','Slot1'),
+      getCol(r,'Date2','Date 2','Option2','Slot2'),
+      getCol(r,'Date3','Date 3','Option3','Slot3'),
+    ].filter(Boolean),
+    status:'pending',confirmedDate:'',locked:false,accessCode:'',
+  })).filter(r=>r.flat);
+  if(!parsed.length){showToast('parse-toast','No valid rows found. Check column headers.','t-r');return;}
+  parsed.forEach(e=>e.accessCode=genCode(e.flat));
+  db.schedule=parsed;
   renderEntryTable();
-  showToast('parse-toast', '✓ Demo schedule loaded — 5 entries with access codes.', 't-g');
+  showToast('parse-toast',`✓ ${filename} — ${parsed.length} entries loaded. Review then publish.`,'t-g',5000);
 }
 
-function renderEntryTable() {
-  const tbody = document.getElementById('entry-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = db.schedule.map((e, i) => `
+function loadDemo(){
+  db.schedule=DEMO_SCHEDULE.map(e=>({...e,accessCode:e.accessCode||genCode(e.flat)}));
+  renderEntryTable();
+  showToast('parse-toast','✓ Demo schedule loaded — 5 entries with access codes.','t-g');
+}
+
+function renderEntryTable(){
+  const tbody=document.getElementById('entry-tbody');if(!tbody)return;
+  tbody.innerHTML=db.schedule.map((e,i)=>`
     <tr>
-      <td><input style="width:75px;border:1px solid var(--dg);border-radius:6px;padding:4px 6px;font-size:11px" value="${e.flat}" onchange="db.schedule[${i}].flat=this.value"/></td>
-      <td><input style="width:110px;border:1px solid var(--dg);border-radius:6px;padding:4px 6px;font-size:11px" value="${e.resident}" onchange="db.schedule[${i}].resident=this.value"/></td>
-      <td><input style="width:120px;border:1px solid var(--dg);border-radius:6px;padding:4px 6px;font-size:11px" value="${e.workType}" onchange="db.schedule[${i}].workType=this.value"/></td>
+      <td><input style="width:70px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.flat}" onchange="db.schedule[${i}].flat=this.value"/></td>
+      <td><input style="width:100px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.resident}" onchange="db.schedule[${i}].resident=this.value"/></td>
+      <td><input style="width:110px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.workType}" onchange="db.schedule[${i}].workType=this.value"/></td>
       <td><span class="code-chip">${e.accessCode}</span></td>
-      <td style="font-size:11px;color:var(--dgd);max-width:180px;line-height:1.7">${e.slots.join('<br>') || '<span style="color:var(--dg)">No slots</span>'}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="removeEntry(${i})"><i class="ti ti-trash"></i></button></td>
+      <td style="font-size:10px;color:var(--dgd);line-height:1.6">${e.slots.join('<br>')||'<span style="color:var(--dg)">—</span>'}</td>
+      <td><button class="btn btn-r btn-sm" onclick="db.schedule.splice(${i},1);renderEntryTable()"><i class="ti ti-trash"></i></button></td>
     </tr>`).join('');
 }
 
-function addManualEntry() {
-  db.schedule.push({
-    flat: 'Flat', resident: '', workType: '',
-    accessCode: generateCode('Flat'),
-    slots: [], status: 'pending', confirmedDate: '', locked: false,
-  });
+function addEntry(){
+  db.schedule.push({flat:'Flat',resident:'',workType:'',accessCode:genCode('Flat'),slots:[],status:'pending',confirmedDate:'',locked:false});
   renderEntryTable();
 }
 
-function removeEntry(i) {
-  db.schedule.splice(i, 1);
-  renderEntryTable();
-}
-
-function publishSchedule() {
-  if (!db.schedule.length) {
-    showToast('publish-toast', 'Add at least one entry before publishing.', 't-r');
-    return;
-  }
-  db.published = true;
-  showToast('publish-toast', '✓ Schedule published. Residents can log in with their access codes and select dates.', 't-g', 6000);
+function publishSchedule(){
+  if(!db.schedule.length){showToast('publish-toast','Add at least one entry first.','t-r');return;}
+  db.published=true;
+  showToast('publish-toast','✓ Published — residents can now log in and select dates.','t-g',5000);
   renderDashboard();
-  if (db.currentResident) renderResidentView();
+  if(db.currentResident) renderResidentHome();
 }
 
 /* ============================================================
-   BACK OFFICE — DASHBOARD
-   ============================================================ */
-
-function renderDashboard() {
-  const total = db.schedule.length;
-  const sent  = db.published ? total : 0;
-  const conf  = db.schedule.filter(e => e.status === 'confirmed').length;
-  const await_ = db.published
-    ? db.schedule.filter(e => e.status === 'pending' || e.status === 'none-requested').length
-    : 0;
-  const fbN  = db.feedback.length;
-  const avg  = fbN ? (db.feedback.reduce((s, f) => s + f.rating, 0) / fbN).toFixed(1) : '—';
-
-  document.getElementById('m-total').textContent = total;
-  document.getElementById('m-sent').textContent  = sent;
-  document.getElementById('m-conf').textContent  = conf;
-  document.getElementById('m-await').textContent = await_;
-  document.getElementById('m-avg').textContent   = fbN ? avg + '★' : '—';
-
-  const empty = document.getElementById('bo-empty');
-  const wrap  = document.getElementById('bo-table-wrap');
-
-  if (!db.published || !total) {
-    empty.style.display = 'block';
-    wrap.style.display  = 'none';
-    return;
-  }
-  empty.style.display = 'none';
-  wrap.style.display  = 'block';
-
-  document.getElementById('dash-ts').textContent = 'Updated just now';
-
-  const sPill = {
-    pending:          `<span class="spill sp-a">Awaiting</span>`,
-    confirmed:        `<span class="spill sp-g">Confirmed 🔒</span>`,
-    'none-requested': `<span class="spill sp-r">New slots needed</span>`,
+   DASHBOARD
+============================================================ */
+function renderDashboard(){
+  const total=db.schedule.length;
+  const conf=db.schedule.filter(e=>e.status==='confirmed').length;
+  const awt=db.published?db.schedule.filter(e=>e.status==='pending'||e.status==='none-requested').length:0;
+  const openDef=db.defects.filter(d=>d.status!=='closed').length;
+  const fbN=db.feedback.length;
+  const avg=fbN?(db.feedback.reduce((s,f)=>s+f.rating,0)/fbN).toFixed(1):'—';
+  document.getElementById('m-total').textContent=total;
+  document.getElementById('m-conf').textContent=conf;
+  document.getElementById('m-await').textContent=awt;
+  document.getElementById('m-def').textContent=openDef;
+  document.getElementById('m-avg').textContent=fbN?avg+'★':'—';
+  const empty=document.getElementById('bo-empty');
+  const wrap=document.getElementById('bo-dash-wrap');
+  if(!db.published||!total){empty.style.display='block';wrap.style.display='none';return;}
+  empty.style.display='none';wrap.style.display='block';
+  document.getElementById('dash-ts').textContent='Updated just now';
+  const sPill={
+    pending:`<span class="spill sp-a">Awaiting</span>`,
+    confirmed:`<span class="spill sp-g">Confirmed 🔒</span>`,
+    'none-requested':`<span class="spill sp-r">New slots needed</span>`,
   };
-
-  document.getElementById('dash-tbody').innerHTML = db.schedule.map((e, i) => `
+  document.getElementById('dash-tbody').innerHTML=db.schedule.map((e,i)=>`
     <tr>
       <td><strong>${e.flat}</strong></td>
       <td>${e.resident}</td>
       <td>${e.workType}</td>
       <td><span class="code-chip">${e.accessCode}</span></td>
-      <td style="font-size:11px;color:var(--dgd);line-height:1.7">${e.slots.join('<br>') || '—'}</td>
-      <td>${sPill[e.status] || ''}</td>
-      <td>${e.confirmedDate
-        ? `<strong style="color:var(--dj)">${e.confirmedDate}</strong>`
-        : `<span style="color:var(--dg)">—</span>`}
-      </td>
+      <td>${sPill[e.status]||''}</td>
+      <td>${e.confirmedDate?`<strong style="color:var(--dj)">${e.confirmedDate}</strong>`:`<span style="color:var(--dg)">—</span>`}</td>
       <td>${e.locked
-        ? `<button class="btn btn-sm btn-o" onclick="unlockSlot(${i})">🔓 Unlock</button>`
-        : e.status === 'pending'
-          ? `<button class="btn btn-sm btn-o" onclick="boRemind(${i})">Remind</button>`
-          : e.status === 'none-requested'
-            ? `<button class="btn btn-sm" style="background:var(--amberbg);color:var(--amber);border:none;border-radius:9px;font-weight:600;cursor:pointer" onclick="sendNewSlots(${i})">New slots</button>`
-            : `<span style="color:var(--dj);font-size:12px;font-weight:600">✓ Done</span>`
+        ?`<button class="btn btn-o btn-sm" onclick="unlockSlot(${i})">🔓 Unlock</button>`
+        :e.status==='pending'
+          ?`<button class="btn btn-o btn-sm" onclick="alert('SMS sent to ${e.resident}')">Remind</button>`
+          :e.status==='none-requested'
+            ?`<button class="btn btn-sm" style="background:var(--amberbg);color:var(--amber);border:none;border-radius:7px;font-weight:600;cursor:pointer" onclick="sendNewSlots(${i})">New slots</button>`
+            :`<span style="color:var(--dj);font-size:11px;font-weight:600">✓ Done</span>`
       }</td>
     </tr>`).join('');
-
-  // Feedback panel
-  const fbPanel = document.getElementById('bo-fb-panel');
-  if (!fbN) { fbPanel.style.display = 'none'; return; }
-  fbPanel.style.display = 'block';
-
-  document.getElementById('bo-fb-pill').textContent = fbN + ' rating' + (fbN !== 1 ? 's' : '');
-  document.getElementById('bo-avg-big').textContent = avg + '★';
-
-  const dist = [5, 4, 3, 2, 1].map(s => ({
-    s, n: db.feedback.filter(f => Math.round(f.rating) === s).length,
-  }));
-  document.getElementById('bo-bars').innerHTML = dist.map(d => `
-    <div class="bar-row">
-      <span style="width:16px;text-align:right;color:var(--dgd)">${d.s}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${fbN ? Math.round(d.n / fbN * 100) : 0}%"></div></div>
-      <span style="width:16px;color:var(--dgd)">${d.n}</span>
-    </div>`).join('');
-
-  document.getElementById('bo-fb-cards').innerHTML = db.feedback.map(f => `
-    <div style="background:var(--dw);border:1px solid var(--dg);border-radius:11px;padding:12px;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:2px">
-        <strong style="font-size:13px;color:var(--db)">${f.flat}</strong>
-        <span style="font-size:11px;color:var(--dgd)">${f.date}</span>
+  const defPanel=document.getElementById('def-dash-panel');
+  if(!openDef){defPanel.style.display='none';return;}
+  defPanel.style.display='block';
+  document.getElementById('def-count-pill').textContent=openDef;
+  document.getElementById('def-dash-list').innerHTML=db.defects.filter(d=>d.status!=='closed').map(d=>`
+    <div class="defect-card ${d.status}" style="margin-bottom:8px">
+      <div class="def-row"><span class="def-title">${d.location} — ${d.desc.slice(0,40)}${d.desc.length>40?'...':''}</span><span class="spill ${d.status==='open'?'sp-r':'sp-a'}">${d.status==='in-progress'?'In progress':d.status}</span></div>
+      <div class="def-meta">${d.flat} · ${d.date} · Priority: ${d.priority.split(' ')[0]}</div>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <button class="btn btn-o btn-sm" onclick="updateDefectStatus('${d.id}','in-progress')">In progress</button>
+        <button class="btn btn-sm" style="background:var(--greenbg);color:var(--green);border:none;border-radius:7px;font-weight:600;cursor:pointer" onclick="updateDefectStatus('${d.id}','closed')">Mark closed</button>
       </div>
-      <div style="font-size:11px;color:var(--dgd);margin-bottom:4px">${f.workType}</div>
-      <div style="color:var(--star);font-size:15px">
-        ${'★'.repeat(Math.round(f.rating))}${'☆'.repeat(5 - Math.round(f.rating))}
-      </div>
-      ${f.comment ? `<div style="font-size:12px;color:var(--dgd);margin-top:4px;font-style:italic">"${f.comment}"</div>` : ''}
     </div>`).join('');
 }
 
-function unlockSlot(i) {
-  const e = db.schedule[i];
-  e.locked        = false;
-  e.status        = 'pending';
-  e.confirmedDate = '';
+function unlockSlot(i){
+  db.schedule[i].locked=false;db.schedule[i].status='pending';db.schedule[i].confirmedDate='';
   renderDashboard();
-  if (db.currentResident?.flat === e.flat) renderResAppts();
-  alert(`${e.flat} has been unlocked. The resident can now select a new date.`);
+  if(db.currentResident?.flat===db.schedule[i].flat) renderResAppts();
+  alert(`${db.schedule[i].flat} unlocked. The resident can now select a new date.`);
 }
 
-function boRemind(i) {
-  const e = db.schedule[i];
-  alert(`SMS reminder sent to ${e.resident} (${e.flat}): "Please select your preferred date for ${e.workType}."`);
-}
-
-function sendNewSlots(i) {
-  db.schedule[i].status = 'pending';
-  db.schedule[i].slots  = [
-    'Mon 23 Jun · 9:00–12:00',
-    'Tue 24 Jun · 9:00–12:00',
-    'Wed 25 Jun · 9:00–12:00',
-  ];
+function sendNewSlots(i){
+  db.schedule[i].status='pending';
+  db.schedule[i].slots=['Mon 23 Jun · 9:00–12:00','Tue 24 Jun · 9:00–12:00','Wed 25 Jun · 9:00–12:00'];
   renderDashboard();
-  if (db.currentResident?.flat === db.schedule[i].flat) renderResAppts();
+  if(db.currentResident?.flat===db.schedule[i].flat) renderResAppts();
 }
 
 /* ============================================================
-   BACK OFFICE — REPORTS
-   ============================================================ */
+   DEFECTS — RESIDENT
+============================================================ */
+function photoSelected(inp){
+  if(inp.files[0]){selectedPhoto=inp.files[0];document.getElementById('photo-lbl').textContent='📷 '+inp.files[0].name+' attached';}
+}
 
-function renderReports() {
-  const conf  = db.schedule.filter(e => e.status === 'confirmed').length;
-  const await_ = db.schedule.filter(e => e.status === 'pending').length;
-  const fbN   = db.feedback.length;
-  const avg   = fbN ? (db.feedback.reduce((s, f) => s + f.rating, 0) / fbN).toFixed(1) : '—';
+function renderResDefects(){
+  const list=document.getElementById('r-def-list');if(!list)return;
+  const myDefs=db.defects.filter(d=>d.flat===db.currentResident?.flat);
+  list.innerHTML=`
+    <button class="vbtn" onclick="document.getElementById('r-def-list').style.display='none';document.getElementById('r-def-form').style.display='block'" style="margin-bottom:10px">+ Report new defect</button>
+    ${myDefs.length?myDefs.map(d=>`
+      <div class="vc" style="padding:10px;margin-bottom:8px;border-left:3px solid ${d.status==='closed'?'var(--green)':d.status==='in-progress'?'var(--amber)':'var(--red)'}">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <div style="font-size:12px;font-weight:700;color:var(--db)">${d.location} issue</div>
+          <span class="spill ${d.status==='open'?'sp-r':d.status==='in-progress'?'sp-a':'sp-g'}" style="font-size:10px">${d.status==='in-progress'?'In progress':d.status}</span>
+        </div>
+        <div style="font-size:10px;color:var(--dgd);margin-bottom:3px">${d.desc.slice(0,60)}${d.desc.length>60?'...':''}</div>
+        <div style="font-size:10px;color:var(--dgd)">Reported ${d.date} · ${d.priority.split(' ')[0]}</div>
+        ${d.updates.length?`<div class="def-updates">Latest: ${d.updates[d.updates.length-1]}</div>`:''}
+        ${d.status==='closed'&&!d.rating?`<div style="margin-top:6px"><div style="font-size:10px;color:var(--dgd);margin-bottom:3px">Rate this repair:</div><div style="display:flex;gap:3px">${[1,2,3,4,5].map(s=>`<button onclick="rateDefect('${d.id}',${s})" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--dg)">★</button>`).join('')}</div></div>`:''}
+        ${d.rating?`<div style="margin-top:4px;color:var(--star);font-size:14px">${'★'.repeat(d.rating)}${'☆'.repeat(5-d.rating)}</div>`:''}
+      </div>`).join('')
+    :'<div class="empty-msg">No defects reported yet</div>'}`;
+  document.getElementById('r-def-form').style.display='none';
+  const open=myDefs.filter(d=>d.status!=='closed').length;
+  const badge=document.getElementById('r-def-n');
+  if(badge){badge.textContent=open;badge.style.display=open>0?'inline-block':'none';}
+  const sub=document.getElementById('r-def-sub');
+  if(sub) sub.textContent=myDefs.length?`${open} open · ${myDefs.length} total`:'Report an issue in your home';
+}
 
-  document.getElementById('rep-conf').textContent  = conf;
-  document.getElementById('rep-await').textContent = await_;
-  document.getElementById('rep-fb').textContent    = fbN;
-  document.getElementById('rep-avg').textContent   = fbN ? avg + '★' : '—';
+function rateDefect(defId,stars){
+  const d=db.defects.find(x=>x.id===defId);if(d)d.rating=stars;
+  renderResDefects();renderRloDefects();renderDashboard();
+}
 
-  const pClass = { confirmed: 'sp-g', 'none-requested': 'sp-r', pending: 'sp-a' };
-  const pLabel = { confirmed: 'Confirmed 🔒', 'none-requested': 'New slots needed', pending: 'Pending' };
-
-  document.getElementById('rep-rows').innerHTML = db.schedule.length
-    ? db.schedule.map(e => `
-        <div class="srow">
-          <span>${e.flat} — ${e.workType}</span>
-          <span class="spill ${pClass[e.status] || 'sp-a'}">${pLabel[e.status] || 'Pending'}</span>
-        </div>`).join('')
-    : '<div class="empty-msg">Upload a schedule to see data</div>';
-
-  document.getElementById('rep-fb-rows').innerHTML = fbN
-    ? db.feedback.map(f => `
-        <div class="srow">
-          <span>${f.flat} · ${f.workType}</span>
-          <span style="color:var(--star);font-weight:700">${f.rating}★</span>
-        </div>`).join('')
-    : '<div class="empty-msg">No feedback yet</div>';
+function submitDefect(){
+  const desc=document.getElementById('r-def-desc').value.trim();
+  if(!desc){phToast('def-toast','Please describe the issue first.','err');return;}
+  db.defects.push({
+    id:'DEF-'+String(defectIdCounter++).padStart(3,'0'),
+    flat:db.currentResident.flat,
+    resident:db.currentResident.resident,
+    desc,
+    location:document.getElementById('r-def-location').value,
+    priority:document.getElementById('r-def-priority').value,
+    status:'open',
+    date:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'}),
+    updates:[],
+    photo:selectedPhoto?selectedPhoto.name:null,
+    rating:null,
+  });
+  selectedPhoto=null;
+  document.getElementById('r-def-desc').value='';
+  document.getElementById('photo-lbl').textContent='Tap to attach a photo';
+  phToast('def-toast','Defect reported. Your RLO has been notified.');
+  setTimeout(()=>{
+    document.getElementById('r-def-form').style.display='none';
+    document.getElementById('r-def-list').style.display='block';
+    renderResDefects();renderDashboard();renderRloDefects();
+  },2000);
 }
 
 /* ============================================================
-   RESIDENT — HOME CARD
-   ============================================================ */
+   DEFECTS — RLO
+============================================================ */
+function renderRloDefects(){
+  document.getElementById('d-open').textContent=db.defects.filter(d=>d.status==='open').length;
+  document.getElementById('d-prog').textContent=db.defects.filter(d=>d.status==='in-progress').length;
+  document.getElementById('d-closed').textContent=db.defects.filter(d=>d.status==='closed').length;
+  const list=document.getElementById('bo-def-list');if(!list)return;
+  if(!db.defects.length){list.innerHTML='<div class="panel" style="text-align:center;padding:28px;color:var(--dgd)"><i class="ti ti-circle-check" style="font-size:28px;display:block;margin:0 auto 8px;color:var(--dg)"></i>No defects reported yet</div>';return;}
+  list.innerHTML=db.defects.map(d=>`
+    <div class="defect-card ${d.status}" style="margin-bottom:10px">
+      <div class="def-row">
+        <div><div class="def-title">${d.id} — ${d.location} (${d.flat})</div>
+        <div class="def-meta">Resident: ${d.resident} · ${d.date} · Priority: <strong>${d.priority.split(' ')[0]}</strong></div></div>
+        <span class="spill ${d.status==='open'?'sp-r':d.status==='in-progress'?'sp-a':'sp-g'}">${d.status==='in-progress'?'In progress':d.status.charAt(0).toUpperCase()+d.status.slice(1)}</span>
+      </div>
+      <div style="font-size:12px;color:var(--db);margin-bottom:7px">${d.desc}</div>
+      ${d.photo?`<div style="font-size:11px;color:var(--dj);margin-bottom:5px">📷 ${d.photo}</div>`:''}
+      ${d.updates.length?`<div class="def-updates">${d.updates.map(u=>'• '+u).join('<br>')}</div>`:''}
+      ${d.rating?`<div style="margin-top:5px;font-size:12px;color:var(--dgd)">Resident rated: <span style="color:var(--star)">${'★'.repeat(d.rating)}${'☆'.repeat(5-d.rating)}</span></div>`:''}
+      <div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap">
+        ${d.status!=='in-progress'&&d.status!=='closed'?`<button class="btn btn-sm" style="background:var(--amberbg);color:var(--amber);border:none;border-radius:7px;font-weight:600;cursor:pointer" onclick="updateDefectStatus('${d.id}','in-progress')"><i class="ti ti-tool"></i> In progress</button>`:''}
+        ${d.status!=='closed'?`<button class="btn btn-sm" style="background:var(--greenbg);color:var(--green);border:none;border-radius:7px;font-weight:600;cursor:pointer" onclick="updateDefectStatus('${d.id}','closed')"><i class="ti ti-circle-check"></i> Mark closed</button>`:''}
+        <button class="btn btn-o btn-sm" onclick="addDefectUpdate('${d.id}')"><i class="ti ti-message"></i> Add update</button>
+      </div>
+    </div>`).join('');
+}
 
-function renderResidentView() {
-  if (!db.currentResident) return;
+function updateDefectStatus(defId,status){
+  const d=db.defects.find(x=>x.id===defId);if(!d)return;
+  d.status=status;
+  d.updates.push(`${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'})} — Status: ${status==='in-progress'?'in progress':status}`);
+  renderRloDefects();renderDashboard();renderReports();
+  if(db.currentResident?.flat===d.flat) renderResDefects();
+}
 
-  const myEntries = db.schedule.filter(e => e.flat === db.currentResident.flat);
-  const first     = myEntries[0];
+function addDefectUpdate(defId){
+  const note=prompt('Add an update (visible to resident):');if(!note)return;
+  const d=db.defects.find(x=>x.id===defId);if(!d)return;
+  d.updates.push(`${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'})} — ${note}`);
+  renderRloDefects();
+  if(db.currentResident?.flat===d.flat) renderResDefects();
+}
 
-  const badge   = document.getElementById('r-home-badge');
-  const dateEl  = document.getElementById('r-home-date');
-  const typeEl  = document.getElementById('r-home-type');
-  const detEl   = document.getElementById('r-home-detail');
-  const apptBdg = document.getElementById('r-appt-badge');
-  const apptSub = document.getElementById('r-appt-sub');
-
-  if (!db.published || !first) {
-    if (badge)   { badge.textContent = 'No schedule yet'; badge.style.background = ''; badge.style.color = ''; }
-    if (dateEl)  dateEl.textContent  = 'Awaiting schedule';
-    if (typeEl)  typeEl.textContent  = '—';
-    if (detEl)   detEl.textContent   = 'Your RLO will upload the works schedule soon.';
-    if (apptBdg) apptBdg.textContent = '0';
-    if (apptSub) apptSub.textContent = 'No appointments yet';
+/* ============================================================
+   RESIDENT HOME
+============================================================ */
+function renderResidentHome(){
+  if(!db.currentResident)return;
+  const my=db.schedule.filter(e=>e.flat===db.currentResident.flat);
+  const first=my[0];
+  const badge=document.getElementById('r-home-badge');
+  if(!db.published||!first){
+    if(badge){badge.textContent='No schedule yet';badge.style.background='';badge.style.color='';}
+    document.getElementById('r-home-date').textContent='Awaiting schedule';
+    document.getElementById('r-home-type').textContent='—';
+    document.getElementById('r-home-det').textContent='Your RLO will upload the works schedule soon.';
+    document.getElementById('r-appt-n').textContent='0';
+    document.getElementById('r-appt-sub').textContent='No appointments yet';
     return;
   }
-
-  const count = myEntries.length;
-  if (apptBdg) apptBdg.textContent = count;
-  if (apptSub) apptSub.textContent = `${count} appointment${count !== 1 ? 's' : ''} scheduled`;
-
-  if (first.confirmedDate) {
-    if (badge) { badge.textContent = '🔒 Confirmed'; badge.style.background = 'var(--greenbg)'; badge.style.color = 'var(--green)'; }
-    if (dateEl) dateEl.textContent = first.confirmedDate;
-    if (typeEl) typeEl.textContent = first.workType;
-    if (detEl)  detEl.textContent  = 'Date locked. Contact your RLO to make changes.';
+  document.getElementById('r-appt-n').textContent=my.length;
+  document.getElementById('r-appt-sub').textContent=`${my.length} appointment${my.length!==1?'s':''} scheduled`;
+  if(first.confirmedDate){
+    if(badge){badge.textContent='🔒 Confirmed';badge.style.background='var(--greenbg)';badge.style.color='var(--green)';}
+    document.getElementById('r-home-date').textContent=first.confirmedDate;
+    document.getElementById('r-home-type').textContent=first.workType;
+    document.getElementById('r-home-det').textContent='Date locked. Contact your RLO to make changes.';
   } else {
-    if (badge) { badge.textContent = 'Choose date'; badge.style.background = 'var(--amberbg)'; badge.style.color = 'var(--amber)'; }
-    if (dateEl) dateEl.textContent = 'Date not yet selected';
-    if (typeEl) typeEl.textContent = first.workType;
-    if (detEl)  detEl.textContent  = `${first.slots.length} options available — please select one.`;
+    if(badge){badge.textContent='Choose date';badge.style.background='var(--amberbg)';badge.style.color='var(--amber)';}
+    document.getElementById('r-home-date').textContent='Date not yet selected';
+    document.getElementById('r-home-type').textContent=first.workType;
+    document.getElementById('r-home-det').textContent=`${first.slots.length} options available — please select one.`;
   }
-
-  // Feedback prompt
-  const hasDone     = myEntries.some(e => e.status === 'confirmed');
-  const alreadyRated = db.feedback.some(f => f.flat === db.currentResident.flat);
-  const fbBadge = document.getElementById('r-fb-badge');
-  const fbSub   = document.getElementById('r-fb-sub');
-  if (fbBadge && fbSub) {
-    if (hasDone && !alreadyRated)  { fbBadge.style.display = 'inline-block'; fbSub.textContent = 'Your rating is needed'; }
-    else if (alreadyRated)          { fbBadge.style.display = 'none'; fbSub.textContent = 'Thank you for your feedback!'; }
-    else                            { fbBadge.style.display = 'none'; fbSub.textContent = 'Share your feedback'; }
+  const hasDone=my.some(e=>e.status==='confirmed');
+  const rated=db.feedback.some(f=>f.flat===db.currentResident.flat);
+  const fbBadge=document.getElementById('r-fb-n');
+  const fbSub=document.getElementById('r-fb-sub');
+  if(fbBadge&&fbSub){
+    if(hasDone&&!rated){fbBadge.style.display='inline-block';fbSub.textContent='Your rating is needed';}
+    else if(rated){fbBadge.style.display='none';fbSub.textContent='Thank you for your feedback!';}
+    else{fbBadge.style.display='none';fbSub.textContent='Share your feedback';}
   }
-
-  if (curRes === 2) renderResAppts();
+  if(curResPage===2) renderResAppts();
 }
 
 /* ============================================================
-   RESIDENT — APPOINTMENTS (locked to flat)
-   ============================================================ */
-
-function renderResAppts() {
-  const body = document.getElementById('r-appts-body');
-  if (!body || !db.currentResident) return;
-
-  if (!db.published) {
-    body.innerHTML = '<div class="empty-msg">Waiting for schedule from your RLO...</div>';
-    return;
-  }
-
-  // Enforced: only this resident's flat
-  const myEntries = db.schedule.filter(e => e.flat === db.currentResident.flat);
-
-  if (!myEntries.length) {
-    body.innerHTML = `<div class="empty-msg">No appointments scheduled for ${db.currentResident.flat} yet.</div>`;
-    return;
-  }
-
-  body.innerHTML = myEntries.map(e => {
-    const si = db.schedule.indexOf(e);
-
-    /* LOCKED — read-only confirmation */
-    if (e.locked && e.confirmedDate) {
-      return `
-        <div class="ph-sect">${e.workType}</div>
-        <div class="lock-banner"><i class="ti ti-lock"></i> Date confirmed and locked</div>
-        <div class="conf-screen">
-          <div class="conf-icon" style="background:var(--greenbg);color:var(--green)"><i class="ti ti-circle-check"></i></div>
-          <div class="conf-title">Date confirmed</div>
-          <div class="conf-sub">${e.confirmedDate}</div>
-          <div class="mc" style="width:100%"><div class="mi mi-j"><i class="ti ti-bell"></i></div><div class="mi-body"><div class="mi-t">SMS reminder set</div><div class="mi-s">24 hours before visit</div></div></div>
-          <div class="mc" style="width:100%"><div class="mi mi-b"><i class="ti ti-user"></i></div><div class="mi-body"><div class="mi-t">RLO notified</div><div class="mi-s">Sarah Okafor · Highbury Gardens</div></div></div>
-          <div class="vc" style="width:100%;margin-top:8px;padding:10px;text-align:left">
-            <div class="vc-d" style="display:flex;align-items:center;gap:6px"><i class="ti ti-info-circle" style="color:var(--dj)"></i>To change this date please message your RLO.</div>
-          </div>
-        </div>`;
-    }
-
-    /* PENDING — slot selection */
-    const slotHTML = e.slots.map((s, idx) => `
-      <div class="slot" id="rslot-${si}-${idx}" onclick="resPickSlot(${si},${idx},'${s.replace(/'/g, "\\'")}')">
-        <div class="srad" id="rsrad-${si}-${idx}"></div>
-        <div><div class="slot-t">${s}</div><div class="slot-d">Available slot</div></div>
-      </div>`).join('');
-
-    return `
+   APPOINTMENTS
+============================================================ */
+function renderResAppts(){
+  const body=document.getElementById('r-appts-body');if(!body||!db.currentResident)return;
+  if(!db.published){body.innerHTML='<div class="empty-msg">Waiting for schedule from your RLO...</div>';return;}
+  const my=db.schedule.filter(e=>e.flat===db.currentResident.flat);
+  if(!my.length){body.innerHTML=`<div class="empty-msg">No appointments for ${db.currentResident.flat} yet.</div>`;return;}
+  body.innerHTML=my.map(e=>{
+    const si=db.schedule.indexOf(e);
+    if(e.locked&&e.confirmedDate)return`
       <div class="ph-sect">${e.workType}</div>
-      <div class="vc" style="padding:10px;margin-bottom:8px">
-        <div class="vc-d"><strong>Once confirmed this date cannot be changed</strong> without contacting your RLO.</div>
-      </div>
-      ${slotHTML}
-      <div class="slot none" id="rslot-${si}-none" onclick="resPickSlot(${si},'none','none')">
+      <div class="lock-banner"><i class="ti ti-lock"></i> Date confirmed and locked</div>
+      <div class="conf-screen">
+        <div class="conf-icon" style="background:var(--greenbg);color:var(--green)"><i class="ti ti-circle-check"></i></div>
+        <div class="conf-title">Date confirmed</div>
+        <div class="conf-sub">${e.confirmedDate}</div>
+        <div class="mc" style="width:100%"><div class="mi mi-j"><i class="ti ti-bell"></i></div><div style="flex:1"><div class="mi-t">SMS reminder set</div><div class="mi-s">24 hours before visit</div></div></div>
+        <div class="mc" style="width:100%"><div class="mi mi-b"><i class="ti ti-user"></i></div><div style="flex:1"><div class="mi-t">RLO notified</div><div class="mi-s">Highbury Gardens</div></div></div>
+        <div class="vc" style="width:100%;margin-top:7px;padding:9px"><div class="vc-d"><i class="ti ti-info-circle" style="color:var(--dj)"></i> To change this date, message your RLO.</div></div>
+      </div>`;
+    const slots=e.slots.map((s,idx)=>`
+      <div class="slot" id="rslot-${si}-${idx}" onclick="resPick(${si},${idx},'${s.replace(/'/g,"\\'")}')">
+        <div class="srad" id="rsrad-${si}-${idx}"></div>
+        <div><div class="slot-t">${s}</div><div class="slot-d">Available</div></div>
+      </div>`).join('');
+    return`
+      <div class="ph-sect">${e.workType}</div>
+      <div class="vc" style="padding:9px;margin-bottom:7px"><div class="vc-d"><strong>Once confirmed this date is locked</strong> and cannot be changed without contacting your RLO.</div></div>
+      ${slots}
+      <div class="slot none" id="rslot-${si}-none" onclick="resPick(${si},'none','none')">
         <div class="srad" id="rsrad-${si}-none"></div>
-        <div><div class="slot-t">None of the above</div><div class="slot-d">Request new options from your RLO</div></div>
+        <div><div class="slot-t">None of the above</div><div class="slot-d">Request new options</div></div>
       </div>
-      <button class="vbtn" id="rconfirm-${si}" style="display:none" onclick="resConfirmSlot(${si})">
-        Confirm this date — this cannot be undone
-      </button>
-      <div class="ph-toast" id="rtoast-${si}"></div>`;
+      <button class="vbtn" id="rconf-${si}" style="display:none" onclick="resConfirm(${si})">Confirm — this cannot be undone</button>
+      <div class="ph-toast" id="rtost-${si}"></div>`;
   }).join('');
 }
 
-function resPickSlot(si, idx, label) {
-  const e = db.schedule[si];
-
-  // Clear all selections for this entry
-  e.slots.forEach((_, i) => {
-    const slotEl = document.getElementById(`rslot-${si}-${i}`);
-    const radEl  = document.getElementById(`rsrad-${si}-${i}`);
-    if (slotEl) slotEl.classList.remove('sel');
-    if (radEl)  radEl.innerHTML = '';
+function resPick(si,idx,label){
+  const e=db.schedule[si];
+  e.slots.forEach((_,i)=>{
+    const s=document.getElementById(`rslot-${si}-${i}`);const r=document.getElementById(`rsrad-${si}-${i}`);
+    if(s)s.classList.remove('sel');if(r)r.innerHTML='';
   });
-  const noneSlot = document.getElementById(`rslot-${si}-none`);
-  const noneRad  = document.getElementById(`rsrad-${si}-none`);
-  if (noneSlot) noneSlot.classList.remove('sel');
-  if (noneRad)  noneRad.innerHTML = '';
-
-  // Select chosen
-  const selSlot = document.getElementById(`rslot-${si}-${idx}`);
-  const selRad  = document.getElementById(`rsrad-${si}-${idx}`);
-  if (selSlot) selSlot.classList.add('sel');
-  if (selRad)  selRad.innerHTML = '<i class="ti ti-check" style="font-size:10px;color:#fff"></i>';
-
-  pendingSlots[si] = { idx, label };
-  const btn = document.getElementById(`rconfirm-${si}`);
-  if (btn) btn.style.display = 'block';
+  const ns=document.getElementById(`rslot-${si}-none`);const nr=document.getElementById(`rsrad-${si}-none`);
+  if(ns)ns.classList.remove('sel');if(nr)nr.innerHTML='';
+  const sel=document.getElementById(`rslot-${si}-${idx}`);const rad=document.getElementById(`rsrad-${si}-${idx}`);
+  if(sel)sel.classList.add('sel');if(rad)rad.innerHTML='<i class="ti ti-check" style="font-size:9px;color:#fff"></i>';
+  pendingSlots[si]={idx,label};
+  const btn=document.getElementById(`rconf-${si}`);if(btn)btn.style.display='block';
 }
 
-function resConfirmSlot(si) {
-  const pending = pendingSlots[si];
-  if (!pending) return;
-
-  const e = db.schedule[si];
-
-  if (pending.idx === 'none') {
-    e.status = 'none-requested';
-    showPhoneToast(`rtoast-${si}`, 'New options requested. Your RLO will contact you within 48 hours.', true);
-  } else {
-    e.confirmedDate = pending.label;
-    e.status        = 'confirmed';
-    e.locked        = true; // 🔒 LOCKED — only RLO can reopen
-  }
-
-  renderResidentView();
-  renderDashboard();
-  renderReports();
-  renderResAppts();
+function resConfirm(si){
+  const p=pendingSlots[si];if(!p)return;
+  const e=db.schedule[si];
+  if(p.idx==='none'){e.status='none-requested';phToast(`rtost-${si}`,'New options requested. Your RLO will contact you within 48 hours.','err');}
+  else{e.confirmedDate=p.label;e.status='confirmed';e.locked=true;}
+  renderResidentHome();renderDashboard();renderReports();renderResAppts();
 }
 
 /* ============================================================
-   RESIDENT — FEEDBACK
-   ============================================================ */
-
-function renderFeedbackScreen() {
-  const body = document.getElementById('r-fb-body');
-  if (!body || !db.currentResident) return;
-
-  const completed    = db.schedule.filter(e => e.flat === db.currentResident.flat && e.status === 'confirmed');
-  const alreadyRated = db.feedback.some(f => f.flat === db.currentResident.flat);
-
-  if (!completed.length) {
-    body.innerHTML = '<div class="empty-msg">No completed work to rate yet.<br>Confirm an appointment first.</div>';
-    return;
+   FEEDBACK
+============================================================ */
+function renderFeedbackScreen(){
+  const body=document.getElementById('r-fb-body');if(!body||!db.currentResident)return;
+  const done=db.schedule.filter(e=>e.flat===db.currentResident.flat&&e.status==='confirmed');
+  const rated=db.feedback.some(f=>f.flat===db.currentResident.flat);
+  if(!done.length){body.innerHTML='<div class="empty-msg">No completed work to rate yet.<br>Confirm an appointment first.</div>';return;}
+  if(rated){
+    const f=db.feedback.find(fb=>fb.flat===db.currentResident.flat);
+    body.innerHTML=`<div class="conf-screen">
+      <div class="conf-icon" style="background:var(--amberbg);color:var(--star)"><i class="ti ti-star-filled"></i></div>
+      <div class="conf-title">Thank you!</div><div class="conf-sub">Feedback submitted.</div>
+      <div class="vc" style="width:100%;padding:10px;text-align:left">
+        <div style="font-size:11px;color:var(--dgd);margin-bottom:3px">${f.workType} · ${f.date}</div>
+        <div style="font-size:16px;color:var(--star)">${'★'.repeat(Math.round(f.rating))}${'☆'.repeat(5-Math.round(f.rating))}</div>
+        ${f.comment?`<div style="font-size:11px;color:var(--dgd);margin-top:4px;font-style:italic">"${f.comment}"</div>`:''}
+      </div></div>`;return;
   }
-
-  if (alreadyRated) {
-    const f = db.feedback.find(fb => fb.flat === db.currentResident.flat);
-    body.innerHTML = `
-      <div class="conf-screen">
-        <div class="conf-icon" style="background:var(--amberbg);color:var(--star)"><i class="ti ti-star-filled"></i></div>
-        <div class="conf-title">Thank you!</div>
-        <div class="conf-sub">Your feedback has been submitted.</div>
-        <div class="vc" style="width:100%;padding:11px;text-align:left">
-          <div style="font-size:12px;color:var(--dgd);margin-bottom:4px">${f.workType} · ${f.date}</div>
-          <div style="font-size:18px;color:var(--star);margin-bottom:4px">${'★'.repeat(Math.round(f.rating))}${'☆'.repeat(5 - Math.round(f.rating))}</div>
-          ${f.comment ? `<div style="font-size:12px;color:var(--dgd);font-style:italic">"${f.comment}"</div>` : ''}
-        </div>
-      </div>`;
-    return;
-  }
-
-  const work = completed[0];
-  body.innerHTML = `
-    <div class="vc" style="padding:11px;margin-bottom:10px">
-      <div style="font-size:13px;font-weight:600;color:var(--db)">${work.workType}</div>
-      <div style="font-size:11px;color:var(--dgd)">${work.confirmedDate} · ${db.currentResident.flat}</div>
-    </div>
-    ${FB_QUESTIONS.map((q, qi) => `
-      <div class="q-row">
-        <div class="q-label">${q}</div>
-        <div class="star-group" id="sg-${qi}">
-          ${[1, 2, 3, 4, 5].map(s =>
-            `<button class="star-btn" id="sb-${qi}-${s}" onclick="rateStar(${qi},${s})" aria-label="${s} stars">★</button>`
-          ).join('')}
-        </div>
-      </div>`).join('')}
-    <div class="ph-sect" style="margin-top:10px">Any additional comments?</div>
-    <textarea class="field" id="fb-comment" placeholder="Optional — share anything else..." rows="3"></textarea>
+  const work=done[0];
+  body.innerHTML=`
+    <div class="vc" style="padding:10px;margin-bottom:9px"><div style="font-size:12px;font-weight:600;color:var(--db)">${work.workType}</div><div style="font-size:10px;color:var(--dgd)">${work.confirmedDate}</div></div>
+    ${FB_QUESTIONS.map((q,qi)=>`<div class="q-row"><div class="q-label">${q}</div><div class="star-group">${[1,2,3,4,5].map(s=>`<button class="star-btn" id="sb-${qi}-${s}" onclick="rateStar(${qi},${s})">★</button>`).join('')}</div></div>`).join('')}
+    <label class="flbl" style="margin-top:8px">Any comments?</label>
+    <textarea class="field" id="fb-comment" placeholder="Optional..." rows="2"></textarea>
     <button class="vbtn" onclick="submitFeedback()">Submit feedback</button>
     <div class="ph-toast" id="fb-toast"></div>`;
 }
 
-function rateStar(qi, val) {
-  starRatings[qi] = val;
-  for (let s = 1; s <= 5; s++) {
-    const btn = document.getElementById(`sb-${qi}-${s}`);
-    if (btn) btn.classList.toggle('lit', s <= val);
-  }
+function rateStar(qi,val){
+  starRatings[qi]=val;
+  for(let s=1;s<=5;s++){const b=document.getElementById(`sb-${qi}-${s}`);if(b)b.classList.toggle('lit',s<=val);}
 }
 
-function submitFeedback() {
-  if (Object.keys(starRatings).length < FB_QUESTIONS.length) {
-    showPhoneToast('fb-toast', 'Please rate all questions before submitting.', true);
-    return;
-  }
-
-  const vals = Object.values(starRatings);
-  const avg  = parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1));
-  const comment = document.getElementById('fb-comment')?.value.trim() || '';
-  const work = db.schedule.find(e => e.flat === db.currentResident.flat && e.status === 'confirmed');
-
-  db.feedback.push({
-    flat:     db.currentResident.flat,
-    workType: work ? work.workType : 'Work',
-    rating:   avg,
-    comment,
-    date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-  });
-
-  // Clear ratings for next time
-  Object.keys(starRatings).forEach(k => delete starRatings[k]);
-
-  renderFeedbackScreen();
-  renderResidentView();
-  renderDashboard();
-  renderReports();
+function submitFeedback(){
+  if(Object.keys(starRatings).length<FB_QUESTIONS.length){phToast('fb-toast','Please rate all questions.','err');return;}
+  const avg=parseFloat((Object.values(starRatings).reduce((a,b)=>a+b,0)/FB_QUESTIONS.length).toFixed(1));
+  const comment=document.getElementById('fb-comment')?.value.trim()||'';
+  const work=db.schedule.find(e=>e.flat===db.currentResident.flat&&e.status==='confirmed');
+  db.feedback.push({flat:db.currentResident.flat,workType:work?work.workType:'Work',rating:avg,comment,date:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'})});
+  Object.keys(starRatings).forEach(k=>delete starRatings[k]);
+  renderFeedbackScreen();renderResidentHome();renderDashboard();renderReports();
 }
 
 /* ============================================================
-   RESIDENT — MESSAGES
-   ============================================================ */
+   MESSAGES
+============================================================ */
+function sendRMsg(type){
+  const id=type==='rlo'?'r-msg':'r-cmp';
+  const t=document.getElementById('r-msg-toast');if(!t)return;
+  t.className='ph-toast';
+  t.textContent=type==='rlo'?'Message sent. Your RLO will respond within 2 working days.':'Complaint submitted to your RLO and escalated to Sonia.';
+  t.style.display='block';document.getElementById(id).value='';
+  setTimeout(()=>t.style.display='none',3500);
+}
 
-function sendRMsg(type) {
-  const fieldId = type === 'rlo' ? 'r-msg' : 'r-cmp';
-  const toast   = document.getElementById('r-msg-toast');
-  if (!toast) return;
+function openMsg(i){
+  const m=db.messages[i];
+  document.getElementById('bo-inbox-list').style.display='none';
+  document.getElementById('bo-inbox-detail').style.display='block';
+  document.getElementById('msg-from').textContent=m.from;
+  document.getElementById('msg-time').textContent=m.time;
+  document.getElementById('msg-body').textContent=m.body;
+  document.getElementById('esc-btn').style.display=m.complaint?'flex':'none';
+  document.getElementById('bo-reply').value='';
+  document.getElementById('reply-toast').style.display='none';
+}
 
-  toast.className   = 'ph-toast';
-  toast.textContent = type === 'rlo'
-    ? 'Message sent. Your RLO will respond within 2 working days.'
-    : 'Complaint submitted to your RLO and escalated to Sonia.';
-  toast.style.display = 'block';
-  document.getElementById(fieldId).value = '';
-  setTimeout(() => { toast.style.display = 'none'; }, 3500);
+function closeMsg(){
+  document.getElementById('bo-inbox-list').style.display='block';
+  document.getElementById('bo-inbox-detail').style.display='none';
+}
+
+function sendReply(){
+  if(!document.getElementById('bo-reply').value.trim())return;
+  showToast('reply-toast','Reply sent and logged.','t-g');
+  document.getElementById('bo-reply').value='';
+}
+
+function escalate(){
+  showToast('reply-toast','Escalated to Sonia. She has been notified by email.','t-r');
 }
 
 /* ============================================================
-   BACK OFFICE — INBOX
-   ============================================================ */
-
-function openMsg(i) {
-  const m = db.messages[i];
-  document.getElementById('bo-inbox-list').style.display   = 'none';
-  document.getElementById('bo-inbox-detail').style.display = 'block';
-  document.getElementById('msg-from').textContent  = m.from;
-  document.getElementById('msg-time').textContent  = m.time;
-  document.getElementById('msg-body').textContent  = m.body;
-  document.getElementById('esc-btn').style.display = m.complaint ? 'flex' : 'none';
-  document.getElementById('bo-reply').value        = '';
-  document.getElementById('reply-toast').style.display = 'none';
+   REPORTS
+============================================================ */
+function renderReports(){
+  const conf=db.schedule.filter(e=>e.status==='confirmed').length;
+  const pend=db.schedule.filter(e=>e.status==='pending').length;
+  const openDef=db.defects.filter(d=>d.status!=='closed').length;
+  const fbN=db.feedback.length;
+  const avg=fbN?(db.feedback.reduce((s,f)=>s+f.rating,0)/fbN).toFixed(1):'—';
+  document.getElementById('rep-conf').textContent=conf;
+  document.getElementById('rep-pend').textContent=pend;
+  document.getElementById('rep-def').textContent=openDef;
+  document.getElementById('rep-avg').textContent=fbN?avg+'★':'—';
+  const pC={confirmed:'sp-g','none-requested':'sp-r',pending:'sp-a'};
+  const pL={confirmed:'Confirmed 🔒','none-requested':'New slots needed',pending:'Pending'};
+  document.getElementById('rep-appt-rows').innerHTML=db.schedule.length
+    ?db.schedule.map(e=>`<div class="srow"><span>${e.flat} — ${e.workType}</span><span class="spill ${pC[e.status]||'sp-a'}">${pL[e.status]||'Pending'}</span></div>`).join('')
+    :'<div class="empty-msg">Upload a schedule first</div>';
+  document.getElementById('rep-def-rows').innerHTML=db.defects.length
+    ?db.defects.map(d=>`<div class="srow"><span>${d.id} · ${d.flat}</span><span class="spill ${d.status==='open'?'sp-r':d.status==='in-progress'?'sp-a':'sp-g'}">${d.status==='in-progress'?'In progress':d.status}</span></div>`).join('')
+    :'<div class="empty-msg">No defects reported yet</div>';
+  document.getElementById('rep-fb-rows').innerHTML=fbN
+    ?db.feedback.map(f=>`<div class="srow"><span>${f.flat} · ${f.workType}</span><span style="color:var(--star);font-weight:700">${f.rating}★</span></div>`).join('')
+    :'<div class="empty-msg">No feedback yet</div>';
 }
-
-function closeMsg() {
-  document.getElementById('bo-inbox-list').style.display   = 'block';
-  document.getElementById('bo-inbox-detail').style.display = 'none';
-}
-
-function sendReply() {
-  if (!document.getElementById('bo-reply').value.trim()) return;
-  showToast('reply-toast', 'Reply sent and logged against this conversation.', 't-g');
-  document.getElementById('bo-reply').value = '';
-}
-
-function escalate() {
-  showToast('reply-toast', 'Complaint escalated to Sonia. She has been notified by email.', 't-r');
-}
-
-/* ============================================================
-   FAQ
-   ============================================================ */
-
-function toggleFaq(el) {
-  const answer = el.querySelector('.faq-a');
-  if (answer) answer.style.display = answer.style.display === 'block' ? 'none' : 'block';
-}
-
-/* ============================================================
-   INIT
-   ============================================================ */
-
-function init() {
-  buildNav();
-  setMode('res');
-}
-
-document.addEventListener('DOMContentLoaded', init);
