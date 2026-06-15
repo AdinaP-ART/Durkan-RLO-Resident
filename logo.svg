@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 36" width="160" height="36" aria-label="Durkan Regen logo">
+  <!-- D monogram box -->
+  <rect width="32" height="32" x="0" y="2" rx="7" fill="#002856"/>
+  <text x="16" y="26" font-family="Georgia, serif" font-size="22" font-weight="700" fill="white" text-anchor="middle">D</text>
+  <!-- DURKAN in dark blue -->
+  <text x="40" y="17" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="700" fill="#002856" letter-spacing="1">DURKAN</text>
+  <!-- regen in jade green -->
+  <text x="40" y="31" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11" font-weight="600" fill="#008C79" letter-spacing="0.5">regen</text>
+</svg>
