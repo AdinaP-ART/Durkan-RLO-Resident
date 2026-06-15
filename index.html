@@ -1,446 +1,425 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Durkan Regen — Resident App + Back Office</title>
-
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.json"/>
-  <meta name="theme-color" content="#002856"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <meta name="apple-mobile-web-app-title" content="Durkan Regen"/>
-  <link rel="apple-touch-icon" href="icons/icon-192.png"/>
-
-  <link rel="stylesheet" href="css/style.css"/>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css"/>
-
-  <!-- SheetJS — real Excel parsing -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Durkan Regen</title>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#002856"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Durkan Regen"/>
+<link rel="apple-touch-icon" href="icons/icon-192.png"/>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
 <!-- ============================================================
-     HEADER
+     LOGO MACRO — reusable inline SVG lockup
+     DURKAN (dark blue #002856) + regen (jade #008C79)
 ============================================================ -->
-<header class="hdr">
-  <div class="hdr-left">
-    <div class="logo">D</div>
-    <div>
-      <div class="hdr-title">Durkan Regen</div>
-      <div class="hdr-sub">Resident App + Back Office</div>
+<template id="logo-tpl">
+  <div class="logo-svg">
+    <div class="logo-box"><span>D</span></div>
+    <div class="logo-text">
+      <span class="logo-durkan">DURKAN</span>
+      <span class="logo-regen">regen</span>
     </div>
   </div>
-  <div class="mode-row">
-    <button class="mbtn on" id="btn-res" onclick="setMode('res')">📱 Resident</button>
-    <button class="mbtn"    id="btn-bo"  onclick="setMode('bo')">🖥 Back Office</button>
-    <span id="logged-in-chip" style="display:none"></span>
+</template>
+
+<!-- ============================================================
+     LANDING
+============================================================ -->
+<div id="landing" class="landing">
+  <div class="landing-card">
+    <div class="landing-logo">
+      <div class="landing-logo-box"><span>D</span></div>
+      <div class="landing-logo-text logo-text">
+        <span class="logo-durkan">DURKAN</span>
+        <span class="logo-regen">regen</span>
+      </div>
+    </div>
+    <p class="landing-sub">Highbury Gardens resident portal.<br>Please select how you are accessing this app.</p>
+    <button class="role-btn" onclick="startAs('res')">
+      <div class="rb-icon rb-res"><i class="ti ti-home"></i></div>
+      <div><div class="rb-title">I am a resident</div><div class="rb-sub">View appointments, report defects, rate work</div></div>
+    </button>
+    <button class="role-btn" onclick="startAs('rlo')">
+      <div class="rb-icon rb-rlo"><i class="ti ti-shield-check"></i></div>
+      <div><div class="rb-title">I am an RLO / Durkan staff</div><div class="rb-sub">Manage schedules, residents and communications</div></div>
+    </button>
   </div>
-</header>
+</div>
 
-<div class="shell">
+<!-- ============================================================
+     RESIDENT APP
+============================================================ -->
+<div id="res-shell" class="app-shell">
+  <header class="hdr">
+    <div class="logo-svg">
+      <div class="logo-box"><span>D</span></div>
+      <div class="logo-text">
+        <span class="logo-durkan">DURKAN</span>
+        <span class="logo-regen">regen</span>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <span id="res-chip" class="chip chip-res" style="display:none"></span>
+      <button class="btn-logout" onclick="logout('res')">Sign out</button>
+    </div>
+  </header>
+  <div class="main">
+    <nav class="sidebar">
+      <div class="sh">MY HOME</div>
+      <div id="res-nav"></div>
+      <div class="story" id="res-story">Enter your access code from your welcome letter to get started.</div>
+    </nav>
+    <div class="content">
 
-  <!-- SIDEBAR -->
-  <nav class="sidebar" aria-label="Section navigation">
-    <div class="sh" id="s-head">RESIDENT</div>
-    <div id="s-nav"></div>
-    <div class="story" id="s-story"></div>
-  </nav>
-
-  <!-- CONTENT -->
-  <main class="content">
-
-    <!-- ========================================================
-         RESIDENT — ONBOARDING / LOGIN
-    ======================================================== -->
-    <div id="rp-onboard" class="page active" role="region" aria-label="Login">
-      <div class="ob-wrap">
-        <div class="ob-phone">
-          <div class="ob-inner">
-            <div class="ob-hero">
-              <div class="ob-icon">🏠</div>
-              <div class="ob-title">Durkan Regen</div>
-              <div class="ob-sub">Highbury Gardens resident portal.<br>Enter your access code from your welcome letter.</div>
-            </div>
-            <div class="ob-body">
-              <label class="ob-label" for="access-code">Your access code</label>
-              <input class="ob-input" id="access-code" placeholder="DRK-F14-XXXX" maxlength="12"
-                oninput="this.value=this.value.toUpperCase()"
-                onkeydown="if(event.key==='Enter')tryLogin()"/>
-              <div class="ob-hint">Find this on your Durkan welcome letter</div>
-              <div class="ob-err" id="ob-err">Invalid code. Please check your letter and try again.</div>
-              <button class="ob-btn" onclick="tryLogin()">Continue →</button>
-              <hr class="ob-divider"/>
-              <button class="ob-sms" onclick="smsFallback()">📱 I don't have the app — send me an SMS code instead</button>
-              <div class="ob-demo-box">
-                <strong>Demo codes to try:</strong><br>
-                <span class="code-chip">DRK-F14-2847</span> → Flat 14, Sarah Ahmed<br>
-                <span class="code-chip">DRK-F09-5531</span> → Flat 9, James Obi<br>
-                <span class="code-chip">DRK-F21-7762</span> → Flat 21, Aisha Patel
+      <!-- R0: LOGIN -->
+      <div id="rp-login" class="page active">
+        <div class="login-wrap"><div class="login-phone"><div class="login-inner">
+          <div class="login-hero">
+            <div class="login-logo-wrap">
+              <div class="login-logo-box"><span>D</span></div>
+              <div class="login-logo-text logo-text">
+                <span class="logo-durkan">DURKAN</span>
+                <span class="logo-regen">regen</span>
               </div>
+            </div>
+            <div class="login-sub">Resident login<br>Enter your unique access code</div>
+          </div>
+          <div class="login-body">
+            <label class="login-label">Access code</label>
+            <input class="login-input" id="res-code" placeholder="DRK-F14-XXXX" maxlength="12"
+              oninput="this.value=this.value.toUpperCase()"
+              onkeydown="if(event.key==='Enter')resLogin()"/>
+            <div class="login-err" id="res-err">Invalid code. Please check your welcome letter.</div>
+            <button class="login-btn" onclick="resLogin()">Continue →</button>
+            <div class="login-hint">Your code is unique to your flat</div>
+            <div class="demo-box">
+              <strong style="color:var(--db)">Demo codes:</strong><br>
+              <span style="font-family:monospace;font-weight:700;color:var(--db)">DRK-F14-2847</span> — Flat 14, Sarah Ahmed<br>
+              <span style="font-family:monospace;font-weight:700;color:var(--db)">DRK-F09-5531</span> — Flat 9, James Obi<br>
+              <span style="font-family:monospace;font-weight:700;color:var(--db)">DRK-F21-7762</span> — Flat 21, Aisha Patel
+            </div>
+          </div>
+        </div></div></div>
+      </div>
+
+      <!-- R1: HOME -->
+      <div id="rp-home" class="page">
+        <div class="phone-wrap"><div class="phone"><div class="phone-in">
+          <div class="notch"><div class="nb"></div></div>
+          <div class="ph-hdr"><div class="ph-hdr-r">
+            <div><div class="ph-eye">Resident app</div><div class="ph-h" id="r-hello">Hello</div><div class="ph-s" id="r-addr">Highbury Gardens</div></div>
+            <div class="ph-logo-pill">
+              <div class="ph-logo-d">D</div>
+              <div class="ph-logo-text"><span class="ph-logo-durkan">DURKAN</span><span class="ph-logo-regen">regen</span></div>
+            </div>
+          </div></div>
+          <div class="jbar"></div>
+          <div class="ph-body">
+            <div class="vc">
+              <div class="vc-top"><span class="vc-lbl">Next visit</span><span id="r-home-badge" class="ch-pill">—</span></div>
+              <div class="vc-t" id="r-home-date">Awaiting schedule</div>
+              <div class="vc-type" id="r-home-type">—</div>
+              <div class="vc-d" id="r-home-det">Your RLO will upload the works schedule soon.</div>
+              <button class="vbtn" onclick="rNav(2)">View my appointments</button>
+            </div>
+            <div class="ph-sect">Quick actions</div>
+            <div class="mc" onclick="rNav(2)"><div class="mi mi-b"><i class="ti ti-calendar"></i></div><div style="flex:1"><div class="mi-t">Appointments</div><div class="mi-s" id="r-appt-sub">No appointments yet</div></div><span class="mc-pill pill-b" id="r-appt-n">0</span></div>
+            <div class="mc" onclick="rNav(3)"><div class="mi mi-r"><i class="ti ti-alert-triangle"></i></div><div style="flex:1"><div class="mi-t">Report a defect</div><div class="mi-s" id="r-def-sub">Report an issue in your home</div></div><span class="mc-pill pill-r" id="r-def-n" style="display:none"></span></div>
+            <div class="mc" onclick="rNav(4)"><div class="mi mi-a"><i class="ti ti-mail"></i></div><div style="flex:1"><div class="mi-t">Message Durkan</div><div class="mi-s">Contact your RLO</div></div></div>
+            <div class="mc" onclick="rNav(6)"><div class="mi mi-j"><i class="ti ti-star"></i></div><div style="flex:1"><div class="mi-t">Rate completed work</div><div class="mi-s" id="r-fb-sub">Share feedback</div></div><span class="mc-pill pill-j" id="r-fb-n" style="display:none">New</span></div>
+          </div>
+          <nav class="pnav">
+            <button class="pnb on"><i class="ti ti-home"></i><span>Home</span></button>
+            <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
+            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Defects</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
+            <button class="pnb" onclick="rNav(6)"><i class="ti ti-star"></i><span>Rate</span></button>
+          </nav>
+        </div></div></div>
+      </div>
+
+      <!-- R2: APPOINTMENTS -->
+      <div id="rp-appts" class="page">
+        <div class="phone-wrap"><div class="phone"><div class="phone-in">
+          <div class="notch"><div class="nb"></div></div>
+          <div class="ph-hdr"><div class="ph-eye">My appointments</div><div class="ph-h sm" id="r-appts-hdr">Highbury Gardens</div><div class="ph-s">Select your preferred dates</div></div>
+          <div class="jbar"></div>
+          <div class="ph-body" id="r-appts-body"><div class="empty-msg">Waiting for schedule from your RLO...</div></div>
+          <nav class="pnav">
+            <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
+            <button class="pnb on"><i class="ti ti-calendar"></i><span>Visits</span></button>
+            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Defects</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
+            <button class="pnb" onclick="rNav(6)"><i class="ti ti-star"></i><span>Rate</span></button>
+          </nav>
+        </div></div></div>
+      </div>
+
+      <!-- R3: DEFECTS -->
+      <div id="rp-defects" class="page">
+        <div class="phone-wrap"><div class="phone"><div class="phone-in">
+          <div class="notch"><div class="nb"></div></div>
+          <div class="ph-hdr"><div class="ph-eye">Defects</div><div class="ph-h sm">Report an issue</div><div class="ph-s">We track every defect to completion</div></div>
+          <div class="jbar"></div>
+          <div class="ph-body">
+            <div id="r-def-list"></div>
+            <div id="r-def-form" style="display:none">
+              <div class="ph-sect">New defect report</div>
+              <label class="flbl">Describe the issue</label>
+              <textarea class="field" id="r-def-desc" placeholder="e.g. Kitchen tap dripping constantly..." rows="3"></textarea>
+              <label class="flbl">Location</label>
+              <select class="field" id="r-def-location"><option>Kitchen</option><option>Bathroom</option><option>Living room</option><option>Bedroom</option><option>Hallway</option><option>Front door</option><option>Other</option></select>
+              <label class="flbl">Photo evidence</label>
+              <div class="photo-zone"><input type="file" accept="image/*" onchange="photoSelected(this)"/><i class="ti ti-camera" style="font-size:22px;display:block;margin:0 auto 4px;pointer-events:none"></i><div id="photo-lbl" style="pointer-events:none">Tap to attach a photo</div></div>
+              <label class="flbl">Priority</label>
+              <select class="field" id="r-def-priority"><option>Low — not urgent</option><option>Medium — needs attention soon</option><option>High — affecting daily life</option><option>Emergency — safety risk</option></select>
+              <button class="vbtn" onclick="submitDefect()">Submit defect report</button>
+              <button class="vbtn blue" onclick="document.getElementById('r-def-form').style.display='none';document.getElementById('r-def-list').style.display='block'" style="margin-top:5px">Cancel</button>
+              <div class="ph-toast" id="def-toast"></div>
+            </div>
+          </div>
+          <nav class="pnav">
+            <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
+            <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
+            <button class="pnb on"><i class="ti ti-alert-triangle"></i><span>Defects</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
+            <button class="pnb" onclick="rNav(6)"><i class="ti ti-star"></i><span>Rate</span></button>
+          </nav>
+        </div></div></div>
+      </div>
+
+      <!-- R4: MESSAGE -->
+      <div id="rp-message" class="page">
+        <div class="phone-wrap"><div class="phone"><div class="phone-in">
+          <div class="notch"><div class="nb"></div></div>
+          <div class="ph-hdr"><div class="ph-eye">Contact</div><div class="ph-h sm">Message Durkan</div><div class="ph-s">RLO responds within 2 working days</div></div>
+          <div class="jbar"></div>
+          <div class="ph-body">
+            <div class="ph-sect">Message your RLO</div>
+            <textarea class="field" id="r-msg" placeholder="e.g. Can we rearrange my survey?" rows="3"></textarea>
+            <button class="vbtn" onclick="sendRMsg('rlo')">Send message</button>
+            <div class="ph-sect" style="margin-top:12px">Raise a complaint</div>
+            <textarea class="field" id="r-cmp" placeholder="Describe your complaint..." rows="3"></textarea>
+            <button class="vbtn blue" onclick="sendRMsg('complaint')">Submit complaint</button>
+            <div class="ph-sect" style="margin-top:12px">Emergency</div>
+            <div class="mc"><div class="mi mi-r"><i class="ti ti-phone-call"></i></div><div style="flex:1"><div class="mi-t">Emergency line</div><div class="mi-s">0800 123 4567 · 24/7</div></div></div>
+            <div class="ph-toast" id="r-msg-toast"></div>
+          </div>
+          <nav class="pnav">
+            <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
+            <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
+            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Defects</span></button>
+            <button class="pnb on"><i class="ti ti-mail"></i><span>Message</span></button>
+            <button class="pnb" onclick="rNav(6)"><i class="ti ti-star"></i><span>Rate</span></button>
+          </nav>
+        </div></div></div>
+      </div>
+
+      <!-- R5: FAQ -->
+      <div id="rp-faq" class="page">
+        <div class="phone-wrap"><div class="phone"><div class="phone-in">
+          <div class="notch"><div class="nb"></div></div>
+          <div class="ph-hdr"><div class="ph-eye">Help</div><div class="ph-h sm">FAQ &amp; Guides</div><div class="ph-s">Highbury Gardens</div></div>
+          <div class="jbar"></div>
+          <div class="ph-body">
+            <div class="vc" style="padding:10px"><div style="font-size:12px;font-weight:600;color:var(--db);margin-bottom:3px">Resident guide</div><div style="font-size:10px;color:var(--dgd);margin-bottom:5px">Everything about your new home</div><a href="https://heyzine.com/flip-book/14b61d7501.html#page/15" target="_blank" style="font-size:11px;color:var(--dj);font-weight:600;text-decoration:none">Open guide →</a></div>
+            <div class="ph-sect">Common questions</div>
+            <div class="faq-item" onclick="toggleFaq(this)"><div class="faq-q">How do I confirm my appointment?</div><div class="faq-a">Go to Visits and select your preferred date. Once confirmed it is locked — contact your RLO to make changes.</div></div>
+            <div class="faq-item" onclick="toggleFaq(this)"><div class="faq-q">How do I report a defect?</div><div class="faq-a">Tap the Defects tab. Add a description, photo and priority. Your RLO will be notified immediately.</div></div>
+            <div class="faq-item" onclick="toggleFaq(this)"><div class="faq-q">What are site working hours?</div><div class="faq-a">Mon–Fri 8:00am–5:00pm. Out-of-hours work will be notified in advance.</div></div>
+            <div class="faq-item" onclick="toggleFaq(this)"><div class="faq-q">What if none of the dates suit me?</div><div class="faq-a">Select "None of the above" — your RLO will arrange alternatives within 48 hours.</div></div>
+          </div>
+          <nav class="pnav">
+            <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
+            <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
+            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Defects</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
+            <button class="pnb on"><i class="ti ti-star"></i><span>Rate</span></button>
+          </nav>
+        </div></div></div>
+      </div>
+
+      <!-- R6: FEEDBACK -->
+      <div id="rp-feedback" class="page">
+        <div class="phone-wrap"><div class="phone"><div class="phone-in">
+          <div class="notch"><div class="nb"></div></div>
+          <div class="ph-hdr"><div class="ph-eye">Feedback</div><div class="ph-h sm">Rate completed work</div><div class="ph-s">Help us improve</div></div>
+          <div class="jbar"></div>
+          <div class="ph-body" id="r-fb-body"><div class="empty-msg">No completed work to rate yet.</div></div>
+          <nav class="pnav">
+            <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
+            <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
+            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Defects</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
+            <button class="pnb on"><i class="ti ti-star"></i><span>Rate</span></button>
+          </nav>
+        </div></div></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     RLO PORTAL
+============================================================ -->
+<div id="rlo-shell" class="app-shell">
+  <header class="hdr">
+    <div class="logo-svg">
+      <div class="logo-box"><span>D</span></div>
+      <div class="logo-text">
+        <span class="logo-durkan">DURKAN</span>
+        <span class="logo-regen">regen</span>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <span id="rlo-chip" class="chip chip-rlo" style="display:none"></span>
+      <button class="btn-logout" onclick="logout('rlo')">Sign out</button>
+    </div>
+  </header>
+  <div class="main">
+    <nav class="sidebar">
+      <div class="sh">RLO PORTAL</div>
+      <div id="rlo-nav"></div>
+      <div class="story">Manage schedules, track appointments, handle defects and communicate with residents.</div>
+    </nav>
+    <div class="content">
+
+      <!-- BO0: RLO LOGIN -->
+      <div id="bp-login" class="page active">
+        <div class="rlo-login-wrap">
+          <div class="rlo-login-card">
+            <div class="rlo-logo-row">
+              <div class="rlo-logo-box"><span>D</span></div>
+              <div class="logo-text">
+                <span class="logo-durkan">DURKAN</span>
+                <span class="logo-regen">regen</span>
+              </div>
+            </div>
+            <div style="font-size:16px;font-weight:700;color:var(--db);margin-bottom:3px">RLO Portal login</div>
+            <div style="font-size:12px;color:var(--dgd);margin-bottom:18px">Highbury Gardens · Durkan Regen</div>
+            <label class="flbl" for="rlo-code">RLO passcode</label>
+            <input class="field" id="rlo-code" type="password" placeholder="Enter your RLO passcode" onkeydown="if(event.key==='Enter')rloLogin()"/>
+            <div style="font-size:11px;color:var(--red);display:none;margin-top:-4px;margin-bottom:8px" id="rlo-err">Invalid passcode. Please try again.</div>
+            <button class="btn btn-j" style="width:100%;justify-content:center" onclick="rloLogin()">Sign in to RLO Portal</button>
+            <div style="margin-top:12px;background:var(--dbl);border-radius:8px;padding:10px;font-size:11px;color:var(--dgd)">
+              <strong style="color:var(--db)">Demo passcodes:</strong><br>
+              <span style="font-family:monospace;font-weight:700;color:var(--db)">RLO-2025</span> — Sarah Okafor (RLO)<br>
+              <span style="font-family:monospace;font-weight:700;color:var(--db)">SONIA-2025</span> — Sonia Williams (Senior RLO)
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- ========================================================
-         RESIDENT — HOME
-    ======================================================== -->
-    <div id="rp-home" class="page" role="region" aria-label="Home">
-      <div class="phone-wrap">
-        <div class="phone">
-          <div class="phone-in">
-            <div class="notch"><div class="nb"></div></div>
-            <div class="ph-hdr">
-              <div class="ph-hdr-r">
-                <div>
-                  <div class="ph-eye">Resident app</div>
-                  <div class="ph-h" id="r-hello">Hello</div>
-                  <div class="ph-s" id="r-address">Highbury Gardens</div>
-                </div>
-                <div class="jpill">🌿 Durkan Regen</div>
-              </div>
-            </div>
-            <div class="jbar"></div>
-            <div class="ph-body">
-              <div class="vc">
-                <div class="vc-top">
-                  <span class="vc-lbl">Next scheduled visit</span>
-                  <span id="r-home-badge" class="ch-pill">Loading...</span>
-                </div>
-                <div class="vc-t" id="r-home-date">Awaiting schedule</div>
-                <div class="vc-type" id="r-home-type">—</div>
-                <div class="vc-d" id="r-home-detail">Your RLO will upload the works schedule soon.</div>
-                <button class="vbtn" onclick="goRes(2)">View my appointments</button>
-              </div>
-              <div class="ph-sect">Quick actions</div>
-              <div class="mc" onclick="goRes(2)" role="button" tabindex="0">
-                <div class="mi mi-b"><i class="ti ti-calendar"></i></div>
-                <div class="mi-body"><div class="mi-t">My appointments</div><div class="mi-s" id="r-appt-sub">No appointments yet</div></div>
-                <span class="mc-pill pill-b" id="r-appt-badge">0</span>
-              </div>
-              <div class="mc" onclick="goRes(3)" role="button" tabindex="0">
-                <div class="mi mi-a"><i class="ti ti-mail"></i></div>
-                <div class="mi-body"><div class="mi-t">Message Durkan</div><div class="mi-s">Contact your RLO</div></div>
-              </div>
-              <div class="mc" onclick="goRes(5)" role="button" tabindex="0">
-                <div class="mi mi-j"><i class="ti ti-star"></i></div>
-                <div class="mi-body"><div class="mi-t">Rate completed work</div><div class="mi-s" id="r-fb-sub">Share your feedback</div></div>
-                <span class="mc-pill pill-j" id="r-fb-badge" style="display:none">New</span>
-              </div>
-              <div class="mc" onclick="logout()" role="button" tabindex="0" style="margin-top:4px">
-                <div class="mi" style="background:#f1efe8;color:var(--dgd)"><i class="ti ti-logout"></i></div>
-                <div class="mi-body"><div class="mi-t" style="color:var(--dgd)">Sign out</div></div>
-              </div>
-            </div>
-            <nav class="pnav" aria-label="App navigation">
-              <button class="pnb on"><i class="ti ti-home"></i><span>Home</span></button>
-              <button class="pnb" onclick="goRes(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
-              <button class="pnb" onclick="goRes(3)"><i class="ti ti-mail"></i><span>Message</span></button>
-              <button class="pnb" onclick="goRes(4)"><i class="ti ti-help"></i><span>FAQ</span></button>
-              <button class="pnb" onclick="goRes(5)"><i class="ti ti-star"></i><span>Feedback</span></button>
-            </nav>
-          </div>
+      <!-- BO1: DASHBOARD -->
+      <div id="bp-dashboard" class="page">
+        <div class="pg-hdr"><div><div class="pg-title">Dashboard</div><div class="pg-sub">Highbury Gardens · live overview</div></div><button class="btn btn-j" onclick="bNav(2)"><i class="ti ti-upload"></i> Upload schedule</button></div>
+        <div class="metrics">
+          <div class="met"><div class="met-l">Total flats</div><div class="met-v" id="m-total">0</div></div>
+          <div class="met"><div class="met-l">Confirmed</div><div class="met-v jade" id="m-conf">0</div></div>
+          <div class="met"><div class="met-l">Awaiting</div><div class="met-v red" id="m-await">0</div></div>
+          <div class="met"><div class="met-l">Open defects</div><div class="met-v red" id="m-def">0</div></div>
+          <div class="met"><div class="met-l">Avg rating</div><div class="met-v star" id="m-avg">—</div></div>
+        </div>
+        <div id="bo-empty" class="panel" style="text-align:center;padding:32px;color:var(--dgd)"><i class="ti ti-calendar-off" style="font-size:32px;display:block;margin:0 auto 10px;color:var(--dg)"></i><p style="margin-bottom:12px">No schedule uploaded yet.</p><button class="btn btn-j" onclick="bNav(2)">Upload works schedule</button></div>
+        <div id="bo-dash-wrap" style="display:none">
+          <div class="panel"><div class="panel-t">Appointment tracker <span class="spill sp-b" id="dash-ts">—</span></div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Flat</th><th>Resident</th><th>Work type</th><th>Access code</th><th>Status</th><th>Confirmed date</th><th>Action</th></tr></thead><tbody id="dash-tbody"></tbody></table></div></div>
+          <div class="panel" id="def-dash-panel" style="display:none"><div class="panel-t">Open defects <span class="spill sp-r" id="def-count-pill">0</span></div><div id="def-dash-list"></div></div>
         </div>
       </div>
-    </div>
 
-    <!-- ========================================================
-         RESIDENT — MY APPOINTMENTS
-    ======================================================== -->
-    <div id="rp-appts" class="page" role="region" aria-label="My appointments">
-      <div class="phone-wrap">
-        <div class="phone">
-          <div class="phone-in">
-            <div class="notch"><div class="nb"></div></div>
-            <div class="ph-hdr">
-              <div class="ph-eye">My appointments</div>
-              <div class="ph-h sm" id="r-appts-title">Highbury Gardens</div>
-              <div class="ph-s">Select your preferred dates</div>
-            </div>
-            <div class="jbar"></div>
-            <div class="ph-body" id="r-appts-body">
-              <div class="empty-msg">Waiting for schedule from your RLO...</div>
-            </div>
-            <nav class="pnav">
-              <button class="pnb" onclick="goRes(1)"><i class="ti ti-home"></i><span>Home</span></button>
-              <button class="pnb on"><i class="ti ti-calendar"></i><span>Visits</span></button>
-              <button class="pnb" onclick="goRes(3)"><i class="ti ti-mail"></i><span>Message</span></button>
-              <button class="pnb" onclick="goRes(4)"><i class="ti ti-help"></i><span>FAQ</span></button>
-              <button class="pnb" onclick="goRes(5)"><i class="ti ti-star"></i><span>Feedback</span></button>
-            </nav>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ========================================================
-         RESIDENT — MESSAGE DURKAN
-    ======================================================== -->
-    <div id="rp-message" class="page" role="region" aria-label="Message Durkan">
-      <div class="phone-wrap">
-        <div class="phone">
-          <div class="phone-in">
-            <div class="notch"><div class="nb"></div></div>
-            <div class="ph-hdr">
-              <div class="ph-eye">Contact</div>
-              <div class="ph-h sm">Message Durkan</div>
-              <div class="ph-s">RLO responds within 2 working days</div>
-            </div>
-            <div class="jbar"></div>
-            <div class="ph-body">
-              <div class="ph-sect">Message your RLO</div>
-              <textarea class="field" id="r-msg" placeholder="e.g. Can we rearrange my survey?" rows="3" aria-label="Message to RLO"></textarea>
-              <button class="vbtn" onclick="sendRMsg('rlo')">Send message</button>
-              <div class="ph-sect" style="margin-top:14px">Raise a complaint</div>
-              <textarea class="field" id="r-cmp" placeholder="Describe your complaint..." rows="3" aria-label="Complaint message"></textarea>
-              <button class="vbtn blue" onclick="sendRMsg('complaint')">Submit complaint</button>
-              <div class="ph-sect" style="margin-top:14px">Emergency</div>
-              <div class="mc">
-                <div class="mi mi-r"><i class="ti ti-phone-call"></i></div>
-                <div class="mi-body"><div class="mi-t">Emergency line</div><div class="mi-s">0800 123 4567 · 24/7</div></div>
-              </div>
-              <div class="ph-toast" id="r-msg-toast"></div>
-            </div>
-            <nav class="pnav">
-              <button class="pnb" onclick="goRes(1)"><i class="ti ti-home"></i><span>Home</span></button>
-              <button class="pnb" onclick="goRes(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
-              <button class="pnb on"><i class="ti ti-mail"></i><span>Message</span></button>
-              <button class="pnb" onclick="goRes(4)"><i class="ti ti-help"></i><span>FAQ</span></button>
-              <button class="pnb" onclick="goRes(5)"><i class="ti ti-star"></i><span>Feedback</span></button>
-            </nav>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ========================================================
-         RESIDENT — FAQ
-    ======================================================== -->
-    <div id="rp-faq" class="page" role="region" aria-label="FAQ and guides">
-      <div class="phone-wrap">
-        <div class="phone">
-          <div class="phone-in">
-            <div class="notch"><div class="nb"></div></div>
-            <div class="ph-hdr">
-              <div class="ph-eye">Help</div>
-              <div class="ph-h sm">FAQ &amp; Guides</div>
-              <div class="ph-s">Highbury Gardens resident info</div>
-            </div>
-            <div class="jbar"></div>
-            <div class="ph-body">
-              <div class="vc" style="padding:11px">
-                <div style="font-size:13px;font-weight:600;color:var(--db);margin-bottom:3px">Resident guide</div>
-                <div style="font-size:11px;color:var(--dgd);margin-bottom:6px">Everything about your new home</div>
-                <a href="https://heyzine.com/flip-book/14b61d7501.html#page/15" target="_blank" class="guide-link">Open guide →</a>
-              </div>
-              <div class="ph-sect">Common questions</div>
-              <div class="faq-item" onclick="toggleFaq(this)">
-                <div class="faq-q">How do I confirm my appointment?</div>
-                <div class="faq-a">Go to My Appointments and select your preferred date. Once confirmed it cannot be changed without contacting your RLO.</div>
-              </div>
-              <div class="faq-item" onclick="toggleFaq(this)">
-                <div class="faq-q">Can I change my confirmed date?</div>
-                <div class="faq-a">Once confirmed, dates are locked. Please message your RLO via the Message screen to request a change.</div>
-              </div>
-              <div class="faq-item" onclick="toggleFaq(this)">
-                <div class="faq-q">What are site working hours?</div>
-                <div class="faq-a">Mon–Fri 8:00am–5:00pm. Out-of-hours work will be notified in advance.</div>
-              </div>
-              <div class="faq-item" onclick="toggleFaq(this)">
-                <div class="faq-q">What if none of the dates suit me?</div>
-                <div class="faq-a">Select "None of the above" — your RLO will arrange alternatives within 48 hours.</div>
-              </div>
-            </div>
-            <nav class="pnav">
-              <button class="pnb" onclick="goRes(1)"><i class="ti ti-home"></i><span>Home</span></button>
-              <button class="pnb" onclick="goRes(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
-              <button class="pnb" onclick="goRes(3)"><i class="ti ti-mail"></i><span>Message</span></button>
-              <button class="pnb on"><i class="ti ti-help"></i><span>FAQ</span></button>
-              <button class="pnb" onclick="goRes(5)"><i class="ti ti-star"></i><span>Feedback</span></button>
-            </nav>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ========================================================
-         RESIDENT — FEEDBACK
-    ======================================================== -->
-    <div id="rp-feedback" class="page" role="region" aria-label="Rate completed work">
-      <div class="phone-wrap">
-        <div class="phone">
-          <div class="phone-in">
-            <div class="notch"><div class="nb"></div></div>
-            <div class="ph-hdr">
-              <div class="ph-eye">Feedback</div>
-              <div class="ph-h sm">Rate completed work</div>
-              <div class="ph-s">Help us improve your experience</div>
-            </div>
-            <div class="jbar"></div>
-            <div class="ph-body" id="r-fb-body">
-              <div class="empty-msg">No completed work to rate yet.</div>
-            </div>
-            <nav class="pnav">
-              <button class="pnb" onclick="goRes(1)"><i class="ti ti-home"></i><span>Home</span></button>
-              <button class="pnb" onclick="goRes(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
-              <button class="pnb" onclick="goRes(3)"><i class="ti ti-mail"></i><span>Message</span></button>
-              <button class="pnb" onclick="goRes(4)"><i class="ti ti-help"></i><span>FAQ</span></button>
-              <button class="pnb on"><i class="ti ti-star"></i><span>Feedback</span></button>
-            </nav>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ========================================================
-         BACK OFFICE — DASHBOARD
-    ======================================================== -->
-    <div id="bp-dashboard" class="page" role="region" aria-label="Dashboard">
-      <div class="pg-hdr">
-        <div><h2 class="pg-title">Dashboard</h2><p class="pg-sub">Highbury Gardens · live overview</p></div>
-        <button class="btn btn-j" onclick="goBo(1)"><i class="ti ti-upload"></i> Upload schedule</button>
-      </div>
-      <div class="metrics">
-        <div class="met"><div class="met-l">Total flats</div><div class="met-v" id="m-total">0</div></div>
-        <div class="met"><div class="met-l">Slots sent</div><div class="met-v jade" id="m-sent">0</div></div>
-        <div class="met"><div class="met-l">Dates confirmed</div><div class="met-v jade" id="m-conf">0</div></div>
-        <div class="met"><div class="met-l">Awaiting response</div><div class="met-v red" id="m-await">0</div></div>
-        <div class="met"><div class="met-l">Avg satisfaction</div><div class="met-v star" id="m-avg">—</div></div>
-      </div>
-      <div id="bo-empty" class="panel" style="text-align:center;padding:36px">
-        <i class="ti ti-calendar-off" style="font-size:36px;display:block;margin:0 auto 10px;color:var(--dg)"></i>
-        <p style="color:var(--dgd);margin-bottom:14px">No schedule uploaded yet.</p>
-        <button class="btn btn-j" onclick="goBo(1)">Upload works schedule</button>
-      </div>
-      <div id="bo-table-wrap" style="display:none">
+      <!-- BO2: UPLOAD -->
+      <div id="bp-upload" class="page">
+        <div class="pg-hdr"><div><div class="pg-title">Upload works schedule</div><div class="pg-sub">Upload Excel — unique access codes generated per flat</div></div></div>
         <div class="panel">
-          <div class="panel-t">Appointment tracker <span class="spill sp-b" id="dash-ts">—</span></div>
-          <div class="table-wrap">
-            <table class="data-tbl">
-              <thead><tr><th>Flat</th><th>Resident</th><th>Work type</th><th>Access code</th><th>Available slots</th><th>Status</th><th>Confirmed date</th><th>Action</th></tr></thead>
-              <tbody id="dash-tbody"></tbody>
-            </table>
+          <div class="panel-t">Step 1 — Upload Excel (.xlsx)</div>
+          <div class="upload-z" id="upload-zone"><input type="file" accept=".xlsx,.xls,.csv" onchange="handleFile(event)"/><i class="ti ti-file-spreadsheet" style="font-size:28px;display:block;margin:0 auto 7px;pointer-events:none"></i><div style="pointer-events:none">Click or drag to upload works-schedule.xlsx</div><div style="font-size:11px;margin-top:3px;pointer-events:none">Columns: <strong>Flat, Resident, Work Type, Date 1, Date 2, Date 3</strong></div></div>
+          <div id="upload-prog" style="display:none"><div style="font-size:12px;color:var(--dgd);margin-bottom:4px" id="prog-lbl">Reading...</div><div class="prog"><div class="prog-f" id="prog-fill"></div></div></div>
+          <div class="toast" id="parse-toast" style="display:none"></div>
+          <a href="#" onclick="loadDemo();return false" style="font-size:12px;color:var(--dj);display:block;margin-top:8px">Or load the demo schedule →</a>
+        </div>
+        <div class="panel">
+          <div class="panel-t">Step 2 — Review entries</div>
+          <p style="font-size:12px;color:var(--dgd);margin-bottom:10px">Each flat has a unique access code. Residents only see their own flat.</p>
+          <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Flat</th><th>Resident</th><th>Work type</th><th>Access code</th><th>Slots</th><th></th></tr></thead><tbody id="entry-tbody"><tr><td colspan="6" style="text-align:center;color:var(--dgd);padding:16px">Upload a file or load the demo</td></tr></tbody></table></div>
+          <button class="btn btn-o btn-sm" onclick="addEntry()" style="margin-top:8px"><i class="ti ti-plus"></i> Add flat</button>
+        </div>
+        <div class="panel">
+          <div class="panel-t">Step 3 — Publish to residents</div>
+          <p style="font-size:12px;color:var(--dgd);margin-bottom:12px">Residents log in with their code and select a date. Confirmed dates are locked — only you can unlock them.</p>
+          <button class="btn btn-j" onclick="publishSchedule()"><i class="ti ti-send"></i> Publish to residents</button>
+          <div class="toast t-g" id="publish-toast" style="display:none">✓ Published — residents can now log in and select dates.</div>
+        </div>
+      </div>
+
+      <!-- BO3: DEFECTS -->
+      <div id="bp-defects" class="page">
+        <div class="pg-hdr"><div><div class="pg-title">Defect management</div><div class="pg-sub">Track all reported issues to completion</div></div></div>
+        <div class="three">
+          <div class="met"><div class="met-l">Open</div><div class="met-v red" id="d-open">0</div></div>
+          <div class="met"><div class="met-l">In progress</div><div class="met-v star" id="d-prog">0</div></div>
+          <div class="met"><div class="met-l">Closed</div><div class="met-v jade" id="d-closed">0</div></div>
+        </div>
+        <div id="bo-def-list"></div>
+      </div>
+
+      <!-- BO4: MESSAGES -->
+      <div id="bp-messages" class="page">
+        <div class="pg-hdr"><div><div class="pg-title">Messages inbox</div><div class="pg-sub">Resident messages and complaints</div></div></div>
+        <div id="bo-inbox-list">
+          <div class="ic-card" onclick="openMsg(0)"><div class="ic-row"><span class="ic-name">Sarah Ahmed — Flat 14</span><span class="spill sp-b">NEW</span></div><div class="ic-msg">Can you confirm if the visit will be before 10am?</div></div>
+          <div class="ic-card complaint" onclick="openMsg(1)"><div class="ic-row"><span class="ic-name">James Obi — Flat 9</span><span class="spill sp-r">Complaint</span></div><div class="ic-msg">The noise from works yesterday started at 7:30am.</div></div>
+          <div class="ic-card" onclick="openMsg(2)"><div class="ic-row"><span class="ic-name">Aisha Patel — Flat 21</span><span class="spill sp-g">Positive</span></div><div class="ic-msg">The kitchen team were absolutely brilliant.</div></div>
+        </div>
+        <div id="bo-inbox-detail" style="display:none">
+          <button class="btn btn-o btn-sm" onclick="closeMsg()" style="margin-bottom:12px">← Back</button>
+          <div style="background:var(--dw);border:1px solid var(--dg);border-radius:11px;padding:13px;margin-bottom:12px"><div style="font-size:14px;font-weight:700;color:var(--db);margin-bottom:2px" id="msg-from"></div><div style="font-size:11px;color:var(--dgd);margin-bottom:7px" id="msg-time"></div><div style="background:var(--dbg);border-radius:7px;padding:9px;font-size:13px;color:var(--db);line-height:1.5" id="msg-body"></div></div>
+          <label class="flbl">Reply</label>
+          <textarea class="field" id="bo-reply" placeholder="Type your reply..." rows="3"></textarea>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn btn-j btn-sm" onclick="sendReply()">Send reply</button>
+            <button class="btn btn-r btn-sm" id="esc-btn" style="display:none" onclick="escalate()">Escalate to Sonia</button>
           </div>
-        </div>
-        <div class="panel" id="bo-fb-panel" style="display:none">
-          <div class="panel-t">Resident feedback <span class="spill sp-j" id="bo-fb-pill">0 ratings</span></div>
-          <div class="three-col">
-            <div class="fb-avg-box">
-              <div class="avg-big" id="bo-avg-big">—</div>
-              <div class="avg-lbl">Average score</div>
-              <div id="bo-bars" style="margin-top:10px"></div>
-            </div>
-            <div id="bo-fb-cards"></div>
-          </div>
+          <div class="toast" id="reply-toast" style="display:none"></div>
         </div>
       </div>
+
+      <!-- BO5: REPORTS -->
+      <div id="bp-reports" class="page">
+        <div class="pg-hdr"><div><div class="pg-title">Reports</div><div class="pg-sub">Highbury Gardens · June 2025</div></div></div>
+        <div class="metrics">
+          <div class="met"><div class="met-l">Confirmed</div><div class="met-v jade" id="rep-conf">0</div></div>
+          <div class="met"><div class="met-l">Pending</div><div class="met-v red" id="rep-pend">0</div></div>
+          <div class="met"><div class="met-l">Defects open</div><div class="met-v red" id="rep-def">0</div></div>
+          <div class="met"><div class="met-l">Avg satisfaction</div><div class="met-v star" id="rep-avg">—</div></div>
+        </div>
+        <div class="three">
+          <div class="panel"><div class="panel-t">Appointment status</div><div id="rep-appt-rows"><div class="empty-msg">Upload a schedule first</div></div></div>
+          <div class="panel"><div class="panel-t">Defect status</div><div id="rep-def-rows"><div class="empty-msg">No defects reported yet</div></div></div>
+          <div class="panel"><div class="panel-t">Satisfaction scores</div><div id="rep-fb-rows"><div class="empty-msg">No feedback yet</div></div></div>
+        </div>
+      </div>
+
     </div>
-
-    <!-- ========================================================
-         BACK OFFICE — UPLOAD SCHEDULE
-    ======================================================== -->
-    <div id="bp-upload" class="page" role="region" aria-label="Upload schedule">
-      <div class="pg-hdr">
-        <div><h2 class="pg-title">Upload works schedule</h2><p class="pg-sub">Upload an Excel file — access codes are generated automatically per flat</p></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-t">Step 1 — Upload Excel (.xlsx)</div>
-        <div class="upload-z" id="upload-zone">
-          <input type="file" accept=".xlsx,.xls,.csv" onchange="handleFile(event)" aria-label="Upload Excel file"/>
-          <i class="ti ti-file-spreadsheet" style="font-size:32px;display:block;margin:0 auto 8px;pointer-events:none"></i>
-          <div style="pointer-events:none">Drag &amp; drop or click to upload works-schedule.xlsx</div>
-          <div class="upload-hint" style="pointer-events:none">Required columns: <strong>Flat, Resident, Work Type, Date 1, Date 2, Date 3</strong></div>
-        </div>
-        <div id="upload-prog" style="display:none">
-          <div class="prog-lbl" id="upload-prog-lbl">Reading file...</div>
-          <div class="prog"><div class="prog-f" id="prog-fill"></div></div>
-        </div>
-        <div class="toast" id="parse-toast" style="display:none"></div>
-        <div style="margin-top:10px">
-          <a href="#" onclick="loadDemo();return false" class="demo-link">Or load the demo schedule instead →</a>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-t">Step 2 — Review entries &amp; access codes</div>
-        <p style="font-size:12px;color:var(--dgd);margin-bottom:12px">Each flat gets a unique access code. Residents use this to log in and see <strong>only their own</strong> appointments.</p>
-        <div class="table-wrap">
-          <table class="data-tbl">
-            <thead><tr><th>Flat</th><th>Resident</th><th>Work type</th><th>Access code</th><th>Available slots</th><th></th></tr></thead>
-            <tbody id="entry-tbody"><tr><td colspan="6" style="text-align:center;color:var(--dgd);padding:20px">Upload a file or load the demo schedule</td></tr></tbody>
-          </table>
-        </div>
-        <button class="btn btn-o btn-sm" onclick="addManualEntry()" style="margin-top:10px"><i class="ti ti-plus"></i> Add flat manually</button>
-      </div>
-
-      <div class="panel">
-        <div class="panel-t">Step 3 — Publish to residents</div>
-        <p style="font-size:13px;color:var(--dgd);margin-bottom:14px">Once published, residents log in with their unique access code and see only their own slots. Confirmed dates are <strong>locked</strong> — only the RLO can reopen them.</p>
-        <button class="btn btn-j" onclick="publishSchedule()"><i class="ti ti-send"></i> Publish schedule to residents</button>
-        <div class="toast t-g" id="publish-toast" style="display:none">✓ Schedule published. Residents can now log in and select dates.</div>
-      </div>
-    </div>
-
-    <!-- ========================================================
-         BACK OFFICE — MESSAGES
-    ======================================================== -->
-    <div id="bp-messages" class="page" role="region" aria-label="Messages inbox">
-      <div class="pg-hdr"><div><h2 class="pg-title">Messages inbox</h2><p class="pg-sub">Resident messages and complaints</p></div></div>
-      <div id="bo-inbox-list">
-        <div class="ic-card" onclick="openMsg(0)" role="button" tabindex="0"><div class="ic-row"><span class="ic-name">Sarah Ahmed — Flat 14</span><span class="spill sp-b">NEW</span></div><div class="ic-msg">Can you confirm if the visit will be before 10am?</div></div>
-        <div class="ic-card complaint" onclick="openMsg(1)" role="button" tabindex="0"><div class="ic-row"><span class="ic-name">James Obi — Flat 9</span><span class="spill sp-r">Complaint</span></div><div class="ic-msg">The noise from works yesterday started at 7:30am.</div></div>
-        <div class="ic-card" onclick="openMsg(2)" role="button" tabindex="0"><div class="ic-row"><span class="ic-name">Aisha Patel — Flat 21</span><span class="spill sp-g">Positive</span></div><div class="ic-msg">The kitchen team were absolutely brilliant.</div></div>
-      </div>
-      <div id="bo-inbox-detail" style="display:none">
-        <button class="btn btn-o btn-sm" onclick="closeMsg()" style="margin-bottom:14px">← Back to inbox</button>
-        <div class="msg-card">
-          <div class="msg-from" id="msg-from"></div>
-          <div class="msg-time" id="msg-time"></div>
-          <div class="msg-body" id="msg-body"></div>
-        </div>
-        <label class="flbl" for="bo-reply">Reply</label>
-        <textarea class="field" id="bo-reply" placeholder="Type your reply..." rows="4"></textarea>
-        <div class="reply-row">
-          <button class="btn btn-j btn-sm" onclick="sendReply()">Send reply</button>
-          <button class="btn btn-sm btn-danger" id="esc-btn" style="display:none" onclick="escalate()">Escalate to Sonia</button>
-        </div>
-        <div class="toast" id="reply-toast" style="display:none"></div>
-      </div>
-    </div>
-
-    <!-- ========================================================
-         BACK OFFICE — REPORTS
-    ======================================================== -->
-    <div id="bp-reports" class="page" role="region" aria-label="Reports">
-      <div class="pg-hdr"><div><h2 class="pg-title">Reports</h2><p class="pg-sub">Highbury Gardens · June 2025</p></div></div>
-      <div class="metrics">
-        <div class="met"><div class="met-l">Appts confirmed</div><div class="met-v jade" id="rep-conf">0</div></div>
-        <div class="met"><div class="met-l">Awaiting selection</div><div class="met-v red" id="rep-await">0</div></div>
-        <div class="met"><div class="met-l">Feedback received</div><div class="met-v jade" id="rep-fb">0</div></div>
-        <div class="met"><div class="met-l">Avg satisfaction</div><div class="met-v star" id="rep-avg">—</div></div>
-      </div>
-      <div class="three-col">
-        <div class="panel"><div class="panel-t">Appointment status</div><div id="rep-rows"><div class="empty-msg">Upload a schedule to see data</div></div></div>
-        <div class="panel"><div class="panel-t">Satisfaction scores</div><div id="rep-fb-rows"><div class="empty-msg">No feedback yet</div></div></div>
-      </div>
-    </div>
-
-  </main>
+  </div>
 </div>
 
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
-        .catch(err => console.warn('SW registration failed:', err));
-    });
-  }
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+}
 </script>
 </body>
 </html>
+Done
+Good — I can see all the code. Rather than pasting huge blocks here, th
