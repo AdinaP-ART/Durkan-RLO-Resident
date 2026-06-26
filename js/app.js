@@ -376,9 +376,9 @@ function buildQrUrl(code) {
 }
 
 function buildQrImageUrl(code) {
-  // Google Charts API — reliable, no JS library needed, works in print windows
+  // quickchart.io — reliable QR code image, no library needed
   const data = encodeURIComponent(buildQrUrl(code));
-  return `https://chart.googleapis.com/chart?cht=qr&chs=200x200&chl=${data}&chco=002856`;
+  return `https://quickchart.io/qr?text=${data}&size=150&dark=002856&light=ffffff&margin=1`;
 }
 
 function generateQrDataUrls(schedule) {
@@ -417,7 +417,7 @@ function letterStyles() {
 function buildAllLettersHTML(qrUrls) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Resident Letters</title>${letterStyles()}</head><body>
     <div class="edit-hint">
-      ✏️ Click any underlined field to edit before printing. Changes only affect this window.
+      ✏️ Click the <strong style='border-bottom:2px dashed #008C79'>client name</strong> to edit it before printing. All other fields are fixed.
       <button onclick="window.print()">🖨 Print all letters</button>
     </div>
     ${db.schedule.map((e,i) => `<div class="${i<db.schedule.length-1?'page-break':''}">${buildLetterBody(e, qrUrls[i])}</div>`).join('')}
@@ -427,7 +427,7 @@ function buildAllLettersHTML(qrUrls) {
 function buildLetterHTML(e, qrUrl) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Letter — ${e.flat}</title>${letterStyles()}</head><body>
     <div class="edit-hint">
-      ✏️ Click any underlined field to edit before printing. Changes only affect this window.
+      ✏️ Click the <strong style='border-bottom:2px dashed #008C79'>client name</strong> to edit it before printing. All other fields are fixed.
       <button onclick="window.print()">🖨 Print letter</button>
     </div>
     ${buildLetterBody(e, qrUrl)}</body></html>`;
@@ -454,16 +454,16 @@ function buildLetterBody(e, qrUrl) {
 
     <!-- Recipient -->
     <div style="margin-bottom:20px;font-size:13px">
-      <strong contenteditable="true">${e.resident}</strong><br>
-      <span contenteditable="true">${e.flat}</span><br>
-      <span contenteditable="true">Highbury Gardens</span>
+      <strong>${e.resident}</strong><br>
+      ${e.flat}<br>
+      Highbury Gardens
     </div>
 
-    <div style="margin-bottom:16px"><strong>Dear <span contenteditable="true">${e.resident.split(' ')[0]}</span>,</strong></div>
+    <div style="margin-bottom:16px"><strong>Dear ${e.resident.split(' ')[0]},</strong></div>
 
     <div style="font-size:14px;font-weight:700;color:#002856;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">Introduction Letter</div>
 
-    <p contenteditable="true">Durkan Ltd has been appointed by <span contenteditable="true">${t.client}</span> to carry out <span contenteditable="true">${t.workType}</span> works to your home.</p>
+    <p>Durkan Ltd has been appointed by <span contenteditable="true" style="border-bottom:2px dashed #008C79;padding:0 2px;cursor:text">${t.client}</span> to carry out ${t.workType} works to your home.</p>
 
     <p>We shall be setting up our site compound at ${t.siteAddr}. We will be contacting you soon to arrange a visit to your home, so we can introduce ourselves, go through our Resident Information Pack, and carry out a survey of your home.</p>
 
@@ -616,6 +616,7 @@ function parseDuringRows(rows, filename) {
     resident:  getCol(r,'Resident','ResidentName','Name'),
     trade:     getCol(r,'Trade','Works','Work Type','Job','Description'),
     timeframe: getCol(r,'Timeframe','Time','AM/PM','Period')||'AM',
+    date:      getCol(r,'Date','WorkDate','Work Date','Day','Scheduled Date')||'',
     note:      getCol(r,'Note','Notes','Additional','Info')||'',
   })).filter(r=>r.flat&&r.trade);
   if (!parsed.length) { showToast('during-parse-toast','No valid rows found.','t-r'); return; }
@@ -625,12 +626,14 @@ function parseDuringRows(rows, filename) {
 }
 
 function loadDuringDemo() {
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  const d = tomorrow.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
   duringWorksList = [
-    {flat:'Flat 14',resident:'Sarah Ahmed', trade:'Tiler',       timeframe:'AM',note:'Kitchen floor — please clear the area'},
-    {flat:'Flat 9', resident:'James Obi',   trade:'Electrician', timeframe:'PM',note:'Second fix electrics'},
-    {flat:'Flat 21',resident:'Aisha Patel', trade:'Plumber',     timeframe:'AM',note:'Bathroom installation'},
-    {flat:'Flat 3', resident:'Unconfirmed', trade:'Plasterer',   timeframe:'AM',note:'Bedroom walls'},
-    {flat:'Flat 7', resident:'Maria Santos',trade:'Decorator',   timeframe:'PM',note:'Living room — first coat'},
+    {flat:'Flat 14',resident:'Sarah Ahmed', trade:'Tiler',       timeframe:'AM',date:d,note:'Kitchen floor — please clear the area'},
+    {flat:'Flat 9', resident:'James Obi',   trade:'Electrician', timeframe:'PM',date:d,note:'Second fix electrics'},
+    {flat:'Flat 21',resident:'Aisha Patel', trade:'Plumber',     timeframe:'AM',date:d,note:'Bathroom installation'},
+    {flat:'Flat 3', resident:'Unconfirmed', trade:'Plasterer',   timeframe:'AM',date:d,note:'Bedroom walls'},
+    {flat:'Flat 7', resident:'Maria Santos',trade:'Decorator',   timeframe:'PM',date:d,note:'Living room — first coat'},
   ];
   renderDuringTable();
   showToast('during-parse-toast','✓ Demo schedule loaded.','t-g');
@@ -645,13 +648,14 @@ function renderDuringTable() {
   tbody.innerHTML = duringWorksList.map((e,i) => `
     <tr>
       <td><input style="width:65px;border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.flat}" onchange="duringWorksList[${i}].flat=this.value"/></td>
-      <td><input style="width:95px;border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.resident}" onchange="duringWorksList[${i}].resident=this.value"/></td>
-      <td><input style="width:110px;border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.trade}" onchange="duringWorksList[${i}].trade=this.value"/></td>
+      <td><input style="width:90px;border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.resident}" onchange="duringWorksList[${i}].resident=this.value"/></td>
+      <td><input style="width:100px;border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.trade}" onchange="duringWorksList[${i}].trade=this.value"/></td>
+      <td><input style="width:90px;border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.date}" placeholder="e.g. Mon 23 Jun" onchange="duringWorksList[${i}].date=this.value"/></td>
       <td><select style="border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" onchange="duringWorksList[${i}].timeframe=this.value">
         <option${e.timeframe==='AM'?' selected':''}>AM</option>
         <option${e.timeframe==='PM'?' selected':''}>PM</option>
       </select></td>
-      <td><input style="width:140px;border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.note}" onchange="duringWorksList[${i}].note=this.value"/></td>
+      <td><input style="width:130px;border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.note}" onchange="duringWorksList[${i}].note=this.value"/></td>
       <td><button class="btn btn-r btn-sm" onclick="duringWorksList.splice(${i},1);renderDuringTable()"><i class="ti ti-trash"></i></button></td>
     </tr>`).join('');
 }
@@ -665,7 +669,7 @@ function publishDuring() {
   if (!duringWorksList.length) { showToast('during-publish-toast','Add at least one entry first.','t-r'); return; }
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   const dateStr  = tomorrow.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
-  db.duringWorks = duringWorksList.map(e => ({...e, forDate:dateStr, publishedAt:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}));
+  db.duringWorks = duringWorksList.map(e => ({...e, publishedAt:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}));
   showToast('during-publish-toast','✓ Published — residents notified of tomorrow\'s works.','t-g',5000);
   renderDuringWorksRlo();
   if (db.currentResident) { renderDuringWorksResident(); updateDuringBadge(); }
@@ -681,7 +685,10 @@ function renderDuringWorksRlo() {
   if (lbl && db.duringWorks[0]) lbl.textContent = db.duringWorks[0].forDate;
   list.innerHTML = db.duringWorks.map(e=>`
     <div style="background:var(--dbg);border-radius:9px;padding:10px 12px;margin-bottom:7px;display:flex;align-items:flex-start;gap:10px">
-      <div style="background:${e.timeframe==='AM'?'var(--dbl)':'var(--amberbg)'};color:${e.timeframe==='AM'?'var(--db)':'var(--amber)'};border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;flex-shrink:0">${e.timeframe}</div>
+      <div style="background:${e.timeframe==='AM'?'var(--dbl)':'var(--amberbg)'};color:${e.timeframe==='AM'?'var(--db)':'var(--amber)'};border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;flex-shrink:0;text-align:center">
+        ${e.date?`<div style="font-size:9px;font-weight:600;opacity:.8">${e.date}</div>`:''}
+        ${e.timeframe}
+      </div>
       <div><div style="font-size:13px;font-weight:600;color:var(--db)">${e.flat} — ${e.trade}</div><div style="font-size:11px;color:var(--dgd)">${e.resident}${e.note?' · '+e.note:''}</div></div>
     </div>`).join('');
 }
@@ -700,7 +707,8 @@ function renderDuringWorksResident() {
     </div>
     ${myWorks.map(e=>`
       <div class="vc" style="padding:12px;margin-bottom:8px;border-left:3px solid ${e.timeframe==='AM'?'var(--db)':'var(--amber)'}">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+          ${e.date?`<div style="font-size:11px;font-weight:600;color:var(--dgd)">${e.date}</div>`:''}
           <div style="background:${e.timeframe==='AM'?'var(--dbl)':'var(--amberbg)'};color:${e.timeframe==='AM'?'var(--db)':'var(--amber)'};border-radius:7px;padding:3px 10px;font-size:12px;font-weight:700">${e.timeframe}</div>
           <div style="font-size:14px;font-weight:700;color:var(--db)">${e.trade}</div>
         </div>
@@ -719,7 +727,7 @@ function updateDuringBadge() {
   const my    = db.duringWorks.filter(e=>e.flat===db.currentResident.flat);
   const badge = document.getElementById('r-during-n');
   const sub   = document.getElementById('r-during-sub');
-  if (my.length) { if(badge)badge.style.display='inline-block'; if(sub)sub.textContent=`Tomorrow ${my[0].timeframe} — ${my[0].trade}`; }
+  if (my.length) { if(badge)badge.style.display='inline-block'; if(sub)sub.textContent=`${my[0].date?my[0].date+' ':''} ${my[0].timeframe} — ${my[0].trade}`; }
   else           { if(badge)badge.style.display='none'; if(sub)sub.textContent='Tomorrow\'s works schedule'; }
 }
 
