@@ -356,69 +356,81 @@ function renderLettersPage() {
         </table>
       </div>
     </div>`;
-  // Generate QR data URLs for each flat then render table
-  generateQrDataUrls(db.schedule).then(qrUrls => {
-    const tbody = document.getElementById('letters-tbody');
-    if (!tbody) return;
+  // Generate QR URLs and render table immediately
+  const qrUrls = generateQrDataUrls(db.schedule);
+  const tbody = document.getElementById('letters-tbody');
+  if (tbody) {
     tbody.innerHTML = db.schedule.map((e, i) => `
       <tr>
         <td><strong>${e.flat}</strong></td>
         <td>${e.resident}</td>
         <td><span class="code-chip">${e.accessCode}</span></td>
-        <td><img src="${qrUrls[i]}" width="60" height="60" style="display:block"/></td>
-        <td><button class="btn btn-o btn-sm" onclick="printSingleLetter(${i})"><i class="ti ti-printer"></i> Print</button></td>
+        <td><img src="${qrUrls[i]}" width="60" height="60" style="display:block;border:1px solid #eee"/></td>
+        <td><button class="btn btn-o btn-sm" onclick="printSingleLetter(${i})"><i class="ti ti-printer"></i> Open &amp; edit</button></td>
       </tr>`).join('');
-  });
-}
-
-async function generateQrDataUrls(schedule) {
-  const urls = [];
-  for (const e of schedule) {
-    try {
-      const url = await QRCode.toDataURL(buildQrUrl(e.accessCode), {
-        width: 120, margin: 1, color: { dark: '#002856', light: '#ffffff' }
-      });
-      urls.push(url);
-    } catch { urls.push(''); }
   }
-  return urls;
 }
 
 function buildQrUrl(code) {
   return `${LETTER_TEMPLATE.appUrl}?code=${code}`;
 }
 
-async function generateAllLetters() {
-  const qrUrls = await generateQrDataUrls(db.schedule);
+function buildQrImageUrl(code) {
+  // Google Charts API — reliable, no JS library needed, works in print windows
+  const data = encodeURIComponent(buildQrUrl(code));
+  return `https://chart.googleapis.com/chart?cht=qr&chs=200x200&chl=${data}&chco=002856`;
+}
+
+function generateQrDataUrls(schedule) {
+  return schedule.map(e => buildQrImageUrl(e.accessCode));
+}
+
+function generateAllLetters() {
+  const qrUrls = generateQrDataUrls(db.schedule);
   const win = window.open('', '_blank');
   win.document.write(buildAllLettersHTML(qrUrls));
   win.document.close();
-  setTimeout(() => win.print(), 800);
-  showToast('letters-toast', `✓ Print pack opened — ${db.schedule.length} letters ready.`, 't-g', 4000);
+  showToast('letters-toast', `✓ Letter pack opened — ${db.schedule.length} letters. Edit then print or save as Word.`, 't-g', 5000);
 }
 
-async function printSingleLetter(i) {
+function printSingleLetter(i) {
   const e = db.schedule[i];
-  const qrUrl = await QRCode.toDataURL(buildQrUrl(e.accessCode), {
-    width: 120, margin: 1, color: { dark: '#002856', light: '#ffffff' }
-  });
+  const qrUrl = buildQrImageUrl(e.accessCode);
   const win = window.open('', '_blank');
   win.document.write(buildLetterHTML(e, qrUrl));
   win.document.close();
-  setTimeout(() => win.print(), 800);
+}
+
+function letterStyles() {
+  return `
+    <style>
+      body{font-family:Arial,sans-serif;margin:0;padding:0}
+      .letter-wrap{max-width:680px;margin:0 auto;padding:40px;font-size:13px;color:#222;line-height:1.6}
+      [contenteditable]{outline:none;border-bottom:1px dashed #ccc;min-width:40px;display:inline-block}
+      [contenteditable]:focus{background:#fffbe6;border-bottom:1px solid #f0a500}
+      .edit-hint{background:#e0f2ef;border:1px solid #008C79;border-radius:6px;padding:8px 12px;font-size:11px;color:#006655;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+      .edit-hint button{background:#002856;color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:11px;cursor:pointer}
+      @media print{.edit-hint{display:none!important}[contenteditable]{border-bottom:none}.page-break{page-break-after:always}}
+    </style>`;
 }
 
 function buildAllLettersHTML(qrUrls) {
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Resident Letters</title>
-    <style>body{font-family:Arial,sans-serif;margin:0}@media print{.page-break{page-break-after:always}}</style>
-    </head><body>
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Resident Letters</title>${letterStyles()}</head><body>
+    <div class="edit-hint">
+      ✏️ Click any underlined field to edit before printing. Changes only affect this window.
+      <button onclick="window.print()">🖨 Print all letters</button>
+    </div>
     ${db.schedule.map((e,i) => `<div class="${i<db.schedule.length-1?'page-break':''}">${buildLetterBody(e, qrUrls[i])}</div>`).join('')}
     </body></html>`;
 }
 
 function buildLetterHTML(e, qrUrl) {
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Letter — ${e.flat}</title>
-    </head><body>${buildLetterBody(e, qrUrl)}</body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Letter — ${e.flat}</title>${letterStyles()}</head><body>
+    <div class="edit-hint">
+      ✏️ Click any underlined field to edit before printing. Changes only affect this window.
+      <button onclick="window.print()">🖨 Print letter</button>
+    </div>
+    ${buildLetterBody(e, qrUrl)}</body></html>`;
 }
 
 function buildLetterBody(e, qrUrl) {
@@ -442,16 +454,16 @@ function buildLetterBody(e, qrUrl) {
 
     <!-- Recipient -->
     <div style="margin-bottom:20px;font-size:13px">
-      <strong>${e.resident}</strong><br>
-      ${e.flat}<br>
-      Highbury Gardens
+      <strong contenteditable="true">${e.resident}</strong><br>
+      <span contenteditable="true">${e.flat}</span><br>
+      <span contenteditable="true">Highbury Gardens</span>
     </div>
 
-    <div style="margin-bottom:16px"><strong>Dear ${e.resident.split(' ')[0]},</strong></div>
+    <div style="margin-bottom:16px"><strong>Dear <span contenteditable="true">${e.resident.split(' ')[0]}</span>,</strong></div>
 
     <div style="font-size:14px;font-weight:700;color:#002856;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">Introduction Letter</div>
 
-    <p>Durkan Ltd has been appointed by ${t.client} to carry out ${t.workType} works to your home.</p>
+    <p contenteditable="true">Durkan Ltd has been appointed by <span contenteditable="true">${t.client}</span> to carry out <span contenteditable="true">${t.workType}</span> works to your home.</p>
 
     <p>We shall be setting up our site compound at ${t.siteAddr}. We will be contacting you soon to arrange a visit to your home, so we can introduce ourselves, go through our Resident Information Pack, and carry out a survey of your home.</p>
 
