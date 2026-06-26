@@ -69,8 +69,7 @@ const resNavDef  = [
   { i:4, icon:'ti-mail',           label:'Message Durkan' },
   { i:5, icon:'ti-help',           label:'FAQ & Guides' },
   { i:6, icon:'ti-star',           label:'Satisfaction Survey' },
-];
-let curResPage = 0;
+];let curResPage = 0;
 
 function buildResNav(cur) {
   document.getElementById('res-nav').innerHTML = resNavDef.map(n =>
@@ -129,7 +128,7 @@ function bNav(i) {
   rloShowPage(rloPageMap[i] || 'bp-dashboard');
   buildRloNav(i);
   if (i === 1) renderDashboard();
-  if (i === 3) renderDuringWorksRlo();
+  if (i === 3) { renderDuringWorksRlo(); document.getElementById('during-review-panel').style.display = duringWorksList.length ? 'block' : 'none'; }
   if (i === 4) renderRloDefects();
   if (i === 6) renderReports();
   if (i === 7) renderLettersPage();
@@ -340,9 +339,9 @@ function renderLettersPage() {
   wrap.innerHTML = `
     <div class="panel">
       <div class="panel-t">Generate resident letters <span class="spill sp-b">${db.schedule.length} flats</span></div>
-      <p style="font-size:12px;color:var(--dgd);margin-bottom:14px">Each letter includes the resident's name, flat number, their unique access code, and a personal QR code that opens the app and logs them in automatically when scanned. Based on the Durkan standard introduction letter template.</p>
+      <p style="font-size:12px;color:var(--dgd);margin-bottom:14px">Each letter includes the resident's name, flat number, their unique access code, and a personal QR code that opens the app and logs them in automatically when scanned.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-        <button class="btn btn-j" onclick="generateAllLetters()"><i class="ti ti-printer"></i> Generate all letters (print pack)</button>
+        <button class="btn btn-j" onclick="generateAllLetters()"><i class="ti ti-printer"></i> Print all letters</button>
       </div>
       <div class="toast t-g" id="letters-toast" style="display:none"></div>
     </div>
@@ -350,78 +349,79 @@ function renderLettersPage() {
       <div class="panel-t">Letters preview</div>
       <div style="overflow-x:auto">
         <table class="tbl">
-          <thead><tr><th>Flat</th><th>Resident</th><th>Access code</th><th>QR preview</th><th>Print</th></tr></thead>
-          <tbody>
-            ${db.schedule.map((e,i) => `
-              <tr>
-                <td><strong>${e.flat}</strong></td>
-                <td>${e.resident}</td>
-                <td><span class="code-chip">${e.accessCode}</span></td>
-                <td><canvas id="qr-prev-${i}" width="60" height="60"></canvas></td>
-                <td><button class="btn btn-o btn-sm" onclick="printSingleLetter(${i})"><i class="ti ti-printer"></i> Print</button></td>
-              </tr>`).join('')}
+          <thead><tr><th>Flat</th><th>Resident</th><th>Access code</th><th>QR code</th><th>Print</th></tr></thead>
+          <tbody id="letters-tbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--dgd);padding:16px">Generating QR codes...</td></tr>
           </tbody>
         </table>
       </div>
     </div>`;
-  // Draw QR preview canvases
-  setTimeout(() => {
-    db.schedule.forEach((e, i) => {
-      const canvas = document.getElementById(`qr-prev-${i}`);
-      if (canvas && window.QRCode) {
-        QRCode.toCanvas(canvas, buildQrUrl(e.accessCode), { width:60, margin:1, color:{dark:'#002856',light:'#ffffff'} }, () => {});
-      }
-    });
-  }, 100);
+  // Generate QR data URLs for each flat then render table
+  generateQrDataUrls(db.schedule).then(qrUrls => {
+    const tbody = document.getElementById('letters-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = db.schedule.map((e, i) => `
+      <tr>
+        <td><strong>${e.flat}</strong></td>
+        <td>${e.resident}</td>
+        <td><span class="code-chip">${e.accessCode}</span></td>
+        <td><img src="${qrUrls[i]}" width="60" height="60" style="display:block"/></td>
+        <td><button class="btn btn-o btn-sm" onclick="printSingleLetter(${i})"><i class="ti ti-printer"></i> Print</button></td>
+      </tr>`).join('');
+  });
+}
+
+async function generateQrDataUrls(schedule) {
+  const urls = [];
+  for (const e of schedule) {
+    try {
+      const url = await QRCode.toDataURL(buildQrUrl(e.accessCode), {
+        width: 120, margin: 1, color: { dark: '#002856', light: '#ffffff' }
+      });
+      urls.push(url);
+    } catch { urls.push(''); }
+  }
+  return urls;
 }
 
 function buildQrUrl(code) {
   return `${LETTER_TEMPLATE.appUrl}?code=${code}`;
 }
 
-function generateAllLetters() {
+async function generateAllLetters() {
+  const qrUrls = await generateQrDataUrls(db.schedule);
   const win = window.open('', '_blank');
-  win.document.write(buildAllLettersHTML());
+  win.document.write(buildAllLettersHTML(qrUrls));
   win.document.close();
   setTimeout(() => win.print(), 800);
-  showToast('letters-toast', `✓ Print pack opened — ${db.schedule.length} letters ready to print.`, 't-g', 4000);
+  showToast('letters-toast', `✓ Print pack opened — ${db.schedule.length} letters ready.`, 't-g', 4000);
 }
 
-function printSingleLetter(i) {
+async function printSingleLetter(i) {
   const e = db.schedule[i];
+  const qrUrl = await QRCode.toDataURL(buildQrUrl(e.accessCode), {
+    width: 120, margin: 1, color: { dark: '#002856', light: '#ffffff' }
+  });
   const win = window.open('', '_blank');
-  win.document.write(buildLetterHTML(e));
+  win.document.write(buildLetterHTML(e, qrUrl));
   win.document.close();
   setTimeout(() => win.print(), 800);
 }
 
-function buildAllLettersHTML() {
+function buildAllLettersHTML(qrUrls) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Resident Letters</title>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"><\/script>
     <style>body{font-family:Arial,sans-serif;margin:0}@media print{.page-break{page-break-after:always}}</style>
     </head><body>
-    ${db.schedule.map((e,i) => `<div class="${i<db.schedule.length-1?'page-break':''}">${buildLetterBody(e)}</div>`).join('')}
-    <script>
-      document.querySelectorAll('canvas[data-code]').forEach(c=>{
-        QRCode.toCanvas(c, c.dataset.url, {width:120,margin:1,color:{dark:'#002856',light:'#ffffff'}},()=>{});
-      });
-    <\/script>
+    ${db.schedule.map((e,i) => `<div class="${i<db.schedule.length-1?'page-break':''}">${buildLetterBody(e, qrUrls[i])}</div>`).join('')}
     </body></html>`;
 }
 
-function buildLetterHTML(e) {
+function buildLetterHTML(e, qrUrl) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Letter — ${e.flat}</title>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"><\/script>
-    </head><body>
-    ${buildLetterBody(e)}
-    <script>
-      const c=document.getElementById('qr-main');
-      QRCode.toCanvas(c,'${buildQrUrl(e.accessCode)}',{width:120,margin:1,color:{dark:'#002856',light:'#ffffff'}},()=>{});
-    <\/script>
-    </body></html>`;
+    </head><body>${buildLetterBody(e, qrUrl)}</body></html>`;
 }
 
-function buildLetterBody(e) {
+function buildLetterBody(e, qrUrl) {
   const t = LETTER_TEMPLATE;
   const today = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
   return `
@@ -462,7 +462,7 @@ function buildLetterBody(e) {
       <div style="font-size:13px;font-weight:700;color:#002856;margin-bottom:12px">Your personal access to the resident app</div>
       <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
         <div style="text-align:center">
-          <canvas id="qr-main" data-url="${buildQrUrl(e.accessCode)}" width="120" height="120" style="display:block"></canvas>
+          <img src="${qrUrl}" width="120" height="120" style="display:block"/>
           <div style="font-size:10px;color:#666;margin-top:4px">Scan with your phone camera</div>
         </div>
         <div style="flex:1;min-width:200px">
@@ -992,4 +992,4 @@ function renderReports() {
   document.getElementById('rep-fb-rows').innerHTML=fbN
     ?db.feedback.map(f=>`<div class="srow"><span>${f.flat} · ${f.workType}</span><span style="color:var(--star);font-weight:700">${f.rating}★</span></div>`).join('')
     :'<div class="empty-msg">No feedback yet</div>';
-} 
+}
