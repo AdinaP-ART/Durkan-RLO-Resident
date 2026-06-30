@@ -60,11 +60,13 @@ function logout(role) {
 /* ============================================================
    RESIDENT NAV
 ============================================================ */
-const resPageMap = { 1:'rp-home', 2:'rp-appts', 3:'rp-defects', 4:'rp-message', 5:'rp-faq', 6:'rp-feedback', 7:'rp-during' };
+const resPageMap = { 1:'rp-home', 2:'rp-appts', 3:'rp-defects', 4:'rp-message', 5:'rp-faq', 6:'rp-feedback', 7:'rp-during', 8:'rp-colours', 9:'rp-updates' };
 const resNavDef  = [
   { i:1, icon:'ti-home',           label:'Home' },
   { i:2, icon:'ti-calendar',       label:'Pre Works Visits' },
   { i:7, icon:'ti-hard-hat',       label:'During Works' },
+  { i:8, icon:'ti-palette',        label:'Colour Choices' },
+  { i:9, icon:'ti-speakerphone',   label:'Updates & Events' },
   { i:3, icon:'ti-alert-triangle', label:'Report an Issue' },
   { i:4, icon:'ti-mail',           label:'Message Durkan' },
   { i:5, icon:'ti-help',           label:'FAQ & Guides' },
@@ -94,16 +96,20 @@ function rNav(i) {
   if (i === 2) renderResAppts();
   if (i === 3) renderResDefects();
   if (i === 7) renderDuringWorksResident();
+  if (i === 8) renderColoursResident();
+  if (i === 9) renderUpdatesResident();
 }
 
 /* ============================================================
    RLO NAV
 ============================================================ */
-const rloPageMap = { 1:'bp-dashboard', 2:'bp-upload', 3:'bp-during', 4:'bp-defects', 5:'bp-messages', 6:'bp-reports', 7:'bp-letters' };
+const rloPageMap = { 1:'bp-dashboard', 2:'bp-upload', 3:'bp-during', 4:'bp-defects', 5:'bp-messages', 6:'bp-reports', 7:'bp-letters', 8:'bp-colours', 9:'bp-updates' };
 const rloNavDef  = [
   { i:1, icon:'ti-layout-dashboard', label:'Dashboard' },
   { i:2, icon:'ti-upload',           label:'Pre Works Schedule' },
   { i:3, icon:'ti-hard-hat',         label:'During Works' },
+  { i:8, icon:'ti-palette',          label:'Colour Choices' },
+  { i:9, icon:'ti-speakerphone',     label:'Updates & Events' },
   { i:4, icon:'ti-alert-triangle',   label:'Issues' },
   { i:5, icon:'ti-mail',             label:'Messages' },
   { i:7, icon:'ti-mail-forward',     label:'Resident Letters' },
@@ -132,6 +138,8 @@ function bNav(i) {
   if (i === 4) renderRloDefects();
   if (i === 6) renderReports();
   if (i === 7) renderLettersPage();
+  if (i === 8) renderColoursRlo();
+  if (i === 9) renderUpdatesRlo();
 }
 
 /* ============================================================
@@ -215,7 +223,7 @@ function showRloPopup(type, message, time) {
     </div>
     <button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:var(--dg);font-size:16px;padding:0;line-height:1">×</button>`;
   document.body.appendChild(popup);
-  setTimeout(() => popup.remove(), 6000);
+  setTimeout(() => popup.remove(), 12000);
 }
 
 function updateNotifBadge() {
@@ -1012,4 +1020,120 @@ function renderReports() {
   document.getElementById('rep-fb-rows').innerHTML=fbN
     ?db.feedback.map(f=>`<div class="srow"><span>${f.flat} · ${f.workType}</span><span style="color:var(--star);font-weight:700">${f.rating}★</span></div>`).join('')
     :'<div class="empty-msg">No feedback yet</div>';
+}
+
+/* ============================================================
+   COLOUR CHOICES — RLO uploads a swatch image, residents preview
+============================================================ */
+function handleSwatchUpload(evt) {
+  const file = evt.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    db.colourSwatch.imageUrl = e.target.result; // data URL — works immediately, no server needed
+    db.colourSwatch.uploadedDate = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    showToast('swatch-toast', '✓ Swatch uploaded. Residents will see this on their next visit to Colour Choices.', 't-g', 4000);
+    renderColoursRlo();
+    if (db.currentResident) renderColoursResident();
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveSwatchCaveat() {
+  const txt = document.getElementById('swatch-caveat').value.trim();
+  if (!txt) return;
+  db.colourSwatch.caveat = txt;
+  showToast('swatch-toast', '✓ Caveat text updated.', 't-g', 3000);
+  renderColoursRlo();
+  if (db.currentResident) renderColoursResident();
+}
+
+function renderColoursRlo() {
+  const caveatBox = document.getElementById('swatch-caveat');
+  if (caveatBox && !caveatBox.value) caveatBox.value = db.colourSwatch.caveat;
+  const img = document.getElementById('swatch-preview-img');
+  const cav = document.getElementById('swatch-preview-caveat');
+  if (img) { img.src = db.colourSwatch.imageUrl; img.style.display = 'block'; }
+  if (cav) cav.textContent = db.colourSwatch.caveat;
+}
+
+function renderColoursResident() {
+  const body = document.getElementById('r-colours-body'); if (!body) return;
+  body.innerHTML = `
+    <div class="vc" style="padding:0;overflow:hidden">
+      <img src="${db.colourSwatch.imageUrl}" style="width:100%;display:block" onerror="this.style.display='none'"/>
+      <div style="padding:11px">
+        <div style="font-size:12px;font-weight:700;color:var(--db);margin-bottom:5px">Kitchen &amp; bathroom colours</div>
+        <div style="font-size:11px;color:var(--dgd);line-height:1.5">${db.colourSwatch.caveat}</div>
+      </div>
+    </div>
+    <div class="vc" style="padding:11px">
+      <div style="font-size:11px;color:var(--dgd);line-height:1.6">
+        <i class="ti ti-info-circle" style="color:var(--dj)"></i>
+        Use this as a starting point to think about your preferences. Your RLO will bring physical samples to your survey appointment so you can see and feel the real colours and finishes before deciding.
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   UPDATES — combined project updates + events
+============================================================ */
+let updateIdCounter = 1;
+
+function postUpdate() {
+  const title = document.getElementById('update-title').value.trim();
+  const body  = document.getElementById('update-body').value.trim();
+  const type  = document.getElementById('update-type').value;
+  const date  = document.getElementById('update-date').value.trim();
+  if (!title || !body) { showToast('update-toast', 'Please add a title and details.', 't-r'); return; }
+
+  db.updates.unshift({
+    id: 'UPD-' + String(updateIdCounter++).padStart(3, '0'),
+    title, body, type, date,
+    posted: new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short' }),
+  });
+
+  document.getElementById('update-title').value = '';
+  document.getElementById('update-body').value  = '';
+  document.getElementById('update-date').value  = '';
+
+  showToast('update-toast', '✓ Posted — all residents will see this update.', 't-g', 4000);
+  renderUpdatesRlo();
+  if (db.currentResident) { renderUpdatesResident(); flagUpdatesBadge(); }
+}
+
+function renderUpdatesRlo() {
+  document.getElementById('updates-count-pill').textContent = db.updates.length;
+  const list = document.getElementById('updates-list'); if (!list) return;
+  if (!db.updates.length) { list.innerHTML = '<div class="empty-msg">No updates posted yet.</div>'; return; }
+  list.innerHTML = db.updates.map(u => `
+    <div class="panel" style="margin-bottom:8px;padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+        <strong style="font-size:13px;color:var(--db)">${u.title}</strong>
+        <span class="spill ${u.type==='Event'?'sp-j':'sp-b'}">${u.type}</span>
+      </div>
+      <div style="font-size:12px;color:var(--dgd);margin-bottom:4px">${u.body}</div>
+      <div style="font-size:11px;color:var(--dg)">${u.date?u.date+' · ':''}Posted ${u.posted}</div>
+    </div>`).join('');
+}
+
+function renderUpdatesResident() {
+  const body = document.getElementById('r-updates-body'); if (!body) return;
+  if (!db.updates.length) { body.innerHTML = '<div class="empty-msg">No updates yet. Check back soon.</div>'; return; }
+  body.innerHTML = db.updates.map(u => `
+    <div class="vc" style="padding:12px;border-left:3px solid ${u.type==='Event'?'var(--dj)':'var(--db)'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;gap:8px">
+        <strong style="font-size:13px;color:var(--db)">${u.title}</strong>
+        <span class="spill ${u.type==='Event'?'sp-j':'sp-b'}" style="flex-shrink:0">${u.type}</span>
+      </div>
+      <div style="font-size:11px;color:var(--dgd);line-height:1.5;margin-bottom:4px">${u.body}</div>
+      <div style="font-size:10px;color:var(--dg)">${u.date?u.date+' · ':''}Posted ${u.posted}</div>
+    </div>`).join('');
+  // Clear badge once viewed
+  const badge = document.getElementById('r-updates-n');
+  if (badge) badge.style.display = 'none';
+}
+
+function flagUpdatesBadge() {
+  const badge = document.getElementById('r-updates-n');
+  if (badge) badge.style.display = 'inline-block';
 }
