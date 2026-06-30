@@ -1,4 +1,3 @@
-Data · TXT
 /* ============================================================
    data.js — Durkan Regen v6
    Shared state, demo data, credentials
