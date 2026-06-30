@@ -93,6 +93,8 @@
             <div class="ph-sect">Quick actions</div>
             <div class="mc" onclick="rNav(2)"><div class="mi mi-b"><i class="ti ti-calendar"></i></div><div style="flex:1"><div class="mi-t">Pre Works appointments</div><div class="mi-s" id="r-appt-sub">No appointments yet</div></div><span class="mc-pill pill-b" id="r-appt-n">0</span></div>
             <div class="mc" onclick="rNav(7)"><div class="mi mi-j"><i class="ti ti-hard-hat"></i></div><div style="flex:1"><div class="mi-t">During Works</div><div class="mi-s" id="r-during-sub">Tomorrow's works schedule</div></div><span class="mc-pill pill-j" id="r-during-n" style="display:none">New</span></div>
+            <div class="mc" onclick="rNav(8)"><div class="mi" style="background:#fdeef0;color:#c2185b"><i class="ti ti-palette"></i></div><div style="flex:1"><div class="mi-t">Colour choices</div><div class="mi-s">Start thinking about your kitchen &amp; bathroom</div></div></div>
+            <div class="mc" onclick="rNav(9)"><div class="mi" style="background:#eef3fc;color:#1d4ed8"><i class="ti ti-speakerphone"></i></div><div style="flex:1"><div class="mi-t">Project updates &amp; events</div><div class="mi-s" id="r-updates-sub">Latest site news</div></div><span class="mc-pill pill-j" id="r-updates-n" style="display:none">New</span></div>
             <div class="mc" onclick="rNav(3)"><div class="mi mi-r"><i class="ti ti-alert-triangle"></i></div><div style="flex:1"><div class="mi-t">Report an issue</div><div class="mi-s" id="r-def-sub">Report a problem in your home</div></div><span class="mc-pill pill-r" id="r-def-n" style="display:none"></span></div>
             <div class="mc" onclick="rNav(4)"><div class="mi mi-a"><i class="ti ti-mail"></i></div><div style="flex:1"><div class="mi-t">Message Durkan</div><div class="mi-s">Contact your RLO</div></div></div>
             <div class="mc" onclick="rNav(6)"><div class="mi mi-j"><i class="ti ti-star"></i></div><div style="flex:1"><div class="mi-t">Satisfaction survey</div><div class="mi-s">Share your feedback</div></div></div>
@@ -247,6 +249,44 @@
         </div></div></div>
       </div>
 
+      <!-- R8: COLOUR CHOICES -->
+      <div id="rp-colours" class="page">
+        <div class="phone-wrap"><div class="phone"><div class="phone-in">
+          <div class="notch"><div class="nb"></div></div>
+          <div class="ph-hdr"><div class="ph-eye">Colour choices</div><div class="ph-h sm">Kitchen &amp; bathroom colours</div><div class="ph-s">Start thinking ahead of your survey</div></div>
+          <div class="jbar"></div>
+          <div class="ph-body" id="r-colours-body">
+            <div class="empty-msg">No colour swatch uploaded yet.</div>
+          </div>
+          <nav class="pnav">
+            <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
+            <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
+            <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
+            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
+          </nav>
+        </div></div></div>
+      </div>
+
+      <!-- R9: UPDATES (project updates + events) -->
+      <div id="rp-updates" class="page">
+        <div class="phone-wrap"><div class="phone"><div class="phone-in">
+          <div class="notch"><div class="nb"></div></div>
+          <div class="ph-hdr"><div class="ph-eye">Updates</div><div class="ph-h sm">Project updates &amp; events</div><div class="ph-s">Latest news from the site team</div></div>
+          <div class="jbar"></div>
+          <div class="ph-body" id="r-updates-body">
+            <div class="empty-msg">No updates yet. Check back soon.</div>
+          </div>
+          <nav class="pnav">
+            <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
+            <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
+            <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
+            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
+          </nav>
+        </div></div></div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -338,7 +378,7 @@
         <div class="pg-hdr"><div><div class="pg-title">During Works schedule</div><div class="pg-sub">Upload tomorrow's daily works — residents are notified automatically</div></div><button class="btn btn-o" onclick="bNav(1)"><i class="ti ti-arrow-left"></i> Back to dashboard</button></div>
         <div class="panel">
           <div class="panel-t">Upload daily schedule (.xlsx)</div>
-          <div class="upload-z"><input type="file" accept=".xlsx,.xls,.csv" onchange="handleDuringFile(event)"/><i class="ti ti-file-spreadsheet" style="font-size:28px;display:block;margin:0 auto 7px;pointer-events:none"></i><div style="pointer-events:none">Columns: <strong>Flat, Resident, Trade, Timeframe (AM/PM), Note</strong></div></div>
+          <div class="upload-z"><input type="file" accept=".xlsx,.xls,.csv" onchange="handleDuringFile(event)"/><i class="ti ti-file-spreadsheet" style="font-size:28px;display:block;margin:0 auto 7px;pointer-events:none"></i><div style="pointer-events:none">Columns: <strong>Flat, Resident, Trade, Date, Timeframe (AM/PM), Note</strong></div></div>
           <div id="during-prog" style="display:none"><div style="font-size:12px;color:var(--dgd);margin-bottom:4px">Reading...</div><div class="prog"><div class="prog-f" id="during-prog-fill"></div></div></div>
           <div class="toast" id="during-parse-toast" style="display:none"></div>
           <a href="#" onclick="loadDuringDemo();return false" style="font-size:12px;color:var(--dj);display:block;margin-top:8px">Or load a demo schedule →</a>
@@ -357,6 +397,54 @@
         <div class="panel" id="during-current-panel" style="display:none">
           <div class="panel-t">Current live schedule <span class="spill sp-g" id="during-live-date"></span></div>
           <div id="during-current-list"></div>
+        </div>
+      </div>
+
+      <!-- BO-COLOURS: COLOUR SWATCH MANAGEMENT -->
+      <div id="bp-colours" class="page">
+        <div class="pg-hdr"><div><div class="pg-title">Colour choices</div><div class="pg-sub">Upload a standard colour swatch for residents to consider ahead of their survey</div></div><button class="btn btn-o" onclick="bNav(1)"><i class="ti ti-arrow-left"></i> Back to dashboard</button></div>
+        <div class="panel">
+          <div class="panel-t">Step 1 — Upload swatch image</div>
+          <div class="upload-z" id="swatch-upload-zone">
+            <input type="file" accept="image/*" onchange="handleSwatchUpload(event)"/>
+            <i class="ti ti-palette" style="font-size:28px;display:block;margin:0 auto 7px;pointer-events:none"></i>
+            <div style="pointer-events:none">Click or drag to upload a colour swatch image (JPG or PNG)</div>
+          </div>
+          <div class="toast t-g" id="swatch-toast" style="display:none"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-t">Step 2 — Caveat text shown to residents</div>
+          <textarea class="field" id="swatch-caveat" rows="3"></textarea>
+          <button class="btn btn-o btn-sm" onclick="saveSwatchCaveat()">Save caveat text</button>
+        </div>
+        <div class="panel">
+          <div class="panel-t">Preview — what residents will see</div>
+          <div style="max-width:320px;border:1px solid var(--dg);border-radius:10px;overflow:hidden">
+            <img id="swatch-preview-img" src="" style="width:100%;display:block" onerror="this.style.display='none'"/>
+            <div style="padding:10px;font-size:11px;color:var(--dgd);background:var(--dbg)" id="swatch-preview-caveat"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BO-UPDATES: PROJECT UPDATES & EVENTS MANAGEMENT -->
+      <div id="bp-updates" class="page">
+        <div class="pg-hdr"><div><div class="pg-title">Project updates &amp; events</div><div class="pg-sub">Post site-wide news, milestones and events — visible to all residents</div></div><button class="btn btn-o" onclick="bNav(1)"><i class="ti ti-arrow-left"></i> Back to dashboard</button></div>
+        <div class="panel">
+          <div class="panel-t">Post a new update</div>
+          <label class="flbl">Title</label>
+          <input class="field" id="update-title" placeholder="e.g. Scaffolding removal next week"/>
+          <label class="flbl">Type</label>
+          <select class="field" id="update-type"><option>Project update</option><option>Event</option></select>
+          <label class="flbl">Details</label>
+          <textarea class="field" id="update-body" rows="3" placeholder="e.g. Scaffolding on Grove Road will be removed week commencing 23 June. Please be aware of contractor vehicles on site."></textarea>
+          <label class="flbl">Date (optional — for events)</label>
+          <input class="field" id="update-date" placeholder="e.g. Mon 23 Jun"/>
+          <button class="btn btn-j" onclick="postUpdate()"><i class="ti ti-speakerphone"></i> Post update to all residents</button>
+          <div class="toast t-g" id="update-toast" style="display:none"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-t">Posted updates <span class="spill sp-b" id="updates-count-pill">0</span></div>
+          <div id="updates-list"></div>
         </div>
       </div>
 
@@ -406,7 +494,7 @@
 
       <!-- BO7: RESIDENT LETTERS -->
       <div id="bp-letters" class="page">
-        <div class="pg-hdr"><div><div class="pg-title">Resident letters</div><div class="pg-sub">Generate personalised letters with unique QR codes per flat</div></div></div>
+        <div class="pg-hdr"><div><div class="pg-title">Resident letters</div><div class="pg-sub">Generate personalised letters with unique QR codes per flat</div></div><button class="btn btn-o" onclick="bNav(1)"><i class="ti ti-arrow-left"></i> Back to dashboard</button></div>
         <div id="letters-wrap"></div>
       </div>
 
