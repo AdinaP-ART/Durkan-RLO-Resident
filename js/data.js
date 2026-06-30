@@ -1,4 +1,4 @@
-/* ============================================================
+a/* ============================================================
    data.js — Durkan Regen v6
    Shared state, demo data, credentials
 ============================================================ */
@@ -13,6 +13,14 @@ const db = {
   messages: [],
   // RLO notification queue
   notifications: [],
+  // Colour swatch — RLO uploads an image, residents view it before survey
+  colourSwatch: {
+    imageUrl: 'icons/colour-swatch.png',
+    caveat: 'Colours shown here are a guide only and may vary slightly on screen. Physical samples will be shown to you in person at your survey appointment.',
+    uploadedDate: '',
+  },
+  // Updates — combined project updates + events
+  updates: [],
 };
 
 const DEMO_CODES = {
@@ -45,7 +53,7 @@ const LETTER_TEMPLATE = {
   siteManager:'[Site Manager Name]',
   smPhone:   '[Site Manager Number]',
   smEmail:   '[sitemanager]@durkan.co.uk',
-  client:    '[CLIENT]',
+  client:    'L&Q',
   workType:  'refurbishment and improvement',
   appUrl:    'https://durkan-rlo-resident.vercel.app',
 };
