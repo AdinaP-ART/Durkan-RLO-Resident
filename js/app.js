@@ -26,6 +26,30 @@ function checkUrlCode() {
 }
 
 /* ============================================================
+   SMS via Twilio (through Vercel serverless function)
+============================================================ */
+async function sendSMS(to, body) {
+  if (!to) { console.log('No mobile number — SMS skipped'); return { skipped: true }; }
+  try {
+    const res = await fetch('/api/send-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, body }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      console.log('SMS sent:', data.sid);
+    } else {
+      console.warn('SMS failed:', data.error);
+    }
+    return data;
+  } catch (err) {
+    console.warn('SMS error (function may not be deployed yet):', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+/* ============================================================
    LANDING
 ============================================================ */
 function startAs(role) {
@@ -63,9 +87,9 @@ function logout(role) {
 const resPageMap = { 1:'rp-home', 2:'rp-appts', 3:'rp-defects', 4:'rp-message', 5:'rp-faq', 6:'rp-feedback', 7:'rp-during', 8:'rp-colours', 9:'rp-updates' };
 const resNavDef  = [
   { i:1, icon:'ti-home',           label:'Home' },
-  { i:2, icon:'ti-calendar',       label:'Pre Works Visits' },
+  { i:2, icon:'ti-calendar',       label:'Choose Your Start Date' },
   { i:7, icon:'ti-hard-hat',       label:'During Works' },
-  { i:8, icon:'ti-palette',        label:'Colour Choices' },
+  { i:8, icon:'ti-photo',          label:'Examples of Finished Work' },
   { i:9, icon:'ti-speakerphone',   label:'Updates & Events' },
   { i:3, icon:'ti-alert-triangle', label:'Report an Issue' },
   { i:4, icon:'ti-mail',           label:'Message Durkan' },
@@ -108,7 +132,7 @@ const rloNavDef  = [
   { i:1, icon:'ti-layout-dashboard', label:'Dashboard' },
   { i:2, icon:'ti-upload',           label:'Pre Works Schedule' },
   { i:3, icon:'ti-hard-hat',         label:'During Works' },
-  { i:8, icon:'ti-palette',          label:'Colour Choices' },
+  { i:8, icon:'ti-photo',            label:'Finished Work Photos' },
   { i:9, icon:'ti-speakerphone',     label:'Updates & Events' },
   { i:4, icon:'ti-alert-triangle',   label:'Issues' },
   { i:5, icon:'ti-mail',             label:'Messages' },
@@ -293,8 +317,9 @@ function parseRows(rows, filename) {
     flat:      getCol(r,'Flat','FlatNo','Unit'),
     resident:  getCol(r,'Resident','ResidentName','Name','Tenant'),
     workType:  getCol(r,'WorkType','Work Type','Work','Type','Job'),
+    mobile:    getCol(r,'Mobile','MobileNumber','Mobile Number','Phone','Tel','Contact'),
     slots:     [getCol(r,'Date1','Date 1'),getCol(r,'Date2','Date 2'),getCol(r,'Date3','Date 3')].filter(Boolean),
-    status:'pending', confirmedDate:'', locked:false, accessCode:'',
+    status:'pending', confirmedDate:'', locked:false, accessCode:'', contactLog:[],
   })).filter(r => r.flat);
   if (!parsed.length) { showToast('parse-toast','No valid rows found. Check column headers.','t-r'); return; }
   parsed.forEach(e => e.accessCode = genCode(e.flat));
@@ -547,21 +572,37 @@ function renderDashboard() {
     confirmed:`<span class="spill sp-g">Confirmed 🔒</span>`,
     'none-requested':`<span class="spill sp-r">New slots needed</span>`,
   };
-  document.getElementById('dash-tbody').innerHTML = db.schedule.map((e,i) => `
-    <tr>
+  document.getElementById('dash-tbody').innerHTML = db.schedule.map((e,i) => {
+    const attempts = (e.contactLog||[]).length;
+    const rowBg = attempts >= 5 ? 'background:#fff0f0' : attempts >= 3 ? 'background:#fffbea' : '';
+    const attemptBadge = attempts > 0
+      ? `<span class="spill ${attempts>=5?'sp-r':attempts>=3?'sp-a':'sp-gr'}" style="font-size:10px">${attempts} attempt${attempts!==1?'s':''}</span>`
+      : '';
+    const escalateBtn = attempts >= 3 && e.status !== 'confirmed'
+      ? `<button class="btn btn-sm" style="background:var(--redbg);color:var(--red);border:1px solid var(--red);border-radius:7px;font-weight:600;cursor:pointer;margin-top:4px;width:100%" onclick="escalateResident(${i})">⚠ Escalate to L&Q</button>`
+      : '';
+    return `<tr style="${rowBg}">
       <td><strong>${e.flat}</strong></td><td>${e.resident}</td><td>${e.workType}</td>
       <td><span class="code-chip">${e.accessCode}</span></td>
       <td>${sPill[e.status]||''}</td>
       <td>${e.confirmedDate?`<strong style="color:var(--dj)">${e.confirmedDate}</strong>`:`<span style="color:var(--dg)">—</span>`}</td>
-      <td>${e.locked
-        ? `<button class="btn btn-o btn-sm" onclick="unlockSlot(${i})">🔓 Unlock</button>`
-        : e.status==='pending'
-          ? `<button class="btn btn-o btn-sm" onclick="alert('SMS sent to ${e.resident}')">Remind</button>`
-          : e.status==='none-requested'
-            ? `<button class="btn btn-sm" style="background:var(--amberbg);color:var(--amber);border:none;border-radius:7px;font-weight:600;cursor:pointer" onclick="sendNewSlots(${i})">New slots</button>`
-            : `<span style="color:var(--dj);font-size:11px;font-weight:600">✓ Done</span>`
-      }</td>
-    </tr>`).join('');
+      <td>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          ${e.locked
+            ? `<button class="btn btn-o btn-sm" onclick="unlockSlot(${i})">🔓 Unlock</button>`
+            : e.status==='pending'
+              ? `<button class="btn btn-o btn-sm" onclick="logContactAttempt(${i})">📞 Log attempt</button>`
+              : e.status==='none-requested'
+                ? `<button class="btn btn-sm" style="background:var(--amberbg);color:var(--amber);border:none;border-radius:7px;font-weight:600;cursor:pointer" onclick="sendNewSlots(${i})">New slots</button>`
+                : `<span style="color:var(--dj);font-size:11px;font-weight:600">✓ Done</span>`
+          }
+          ${attemptBadge}
+          ${escalateBtn}
+          ${attempts > 0 ? `<button class="btn btn-o btn-sm" style="font-size:10px" onclick="viewContactLog(${i})">View log</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
   // Defects panel
   const defPanel = document.getElementById('def-dash-panel');
   if (!openDef) { defPanel.style.display='none'; }
@@ -588,6 +629,7 @@ function unlockSlot(i) {
 function sendNewSlots(i) {
   db.schedule[i].status='pending';
   db.schedule[i].slots=['Mon 23 Jun','Tue 24 Jun','Wed 25 Jun'];
+  if (!db.schedule[i].contactLog) db.schedule[i].contactLog = [];
   renderDashboard();
   if (db.currentResident?.flat===db.schedule[i].flat) renderResAppts();
 }
@@ -678,6 +720,14 @@ function publishDuring() {
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   const dateStr  = tomorrow.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
   db.duringWorks = duringWorksList.map(e => ({...e, publishedAt:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}));
+  // Send SMS to each resident with mobile number about tomorrow's works
+  db.duringWorks.forEach(e => {
+    const sched = db.schedule.find(s => s.flat === e.flat);
+    const mobile = e.mobile || (sched && sched.mobile);
+    if (mobile) {
+      sendSMS(mobile, `Hi ${e.resident.split(' ')[0]}, tomorrow${e.date?' ('+e.date+')':''} the ${e.trade} is scheduled at ${e.flat} in the ${e.timeframe}. Please ensure access is available. Durkan Regen.`);
+    }
+  });
   showToast('during-publish-toast','✓ Published — residents notified of tomorrow\'s works.','t-g',5000);
   renderDuringWorksRlo();
   if (db.currentResident) { renderDuringWorksResident(); updateDuringBadge(); }
@@ -796,7 +846,8 @@ function renderResAppts() {
     return `
       <div class="ph-sect">${e.workType}</div>
       <div class="vc" style="padding:9px;margin-bottom:7px"><div class="vc-d"><strong>Once confirmed this date is locked</strong> — contact your RLO to change it.</div></div>
-      ${e.slots.map((s,idx)=>`
+      ${e.slots.some(s=>db.schedule.some(o=>o!==e&&o.status==='confirmed'&&o.confirmedDate===s))?`<div class="vc" style="padding:9px;margin-bottom:7px;border-left:3px solid var(--amber)"><div class="vc-d">Some dates have already been taken by other residents and are no longer shown.</div></div>`:''}
+      ${e.slots.filter(s=>!db.schedule.some(o=>o!==e&&o.status==='confirmed'&&o.confirmedDate===s)).map((s,idx)=>`
         <div class="slot" id="rslot-${si}-${idx}" onclick="resPick(${si},${idx},'${s.replace(/'/g,"\\'")}')">
           <div class="srad" id="rsrad-${si}-${idx}"></div>
           <div><div class="slot-t">${s}</div><div class="slot-d">Available</div></div>
@@ -823,6 +874,15 @@ function resPick(si,idx,label) {
 function resConfirm(si) {
   const p=pendingSlots[si]; if(!p) return;
   const e=db.schedule[si];
+  if (p.idx!=='none') {
+    const takenByOther = db.schedule.some(o=>o!==e&&o.status==='confirmed'&&o.confirmedDate===p.label);
+    if (takenByOther) {
+      phToast(`rtost-${si}`,'Sorry — that date has just been taken by another resident. Please choose a different one.','err');
+      delete pendingSlots[si];
+      setTimeout(()=>renderResAppts(),1500);
+      return;
+    }
+  }
   if (p.idx==='none') {
     e.status='none-requested';
     phToast(`rtost-${si}`,'New options requested. Your RLO will contact you within 48 hours.','err');
@@ -830,6 +890,10 @@ function resConfirm(si) {
   } else {
     e.confirmedDate=p.label; e.status='confirmed'; e.locked=true;
     pushNotification('appointment',`${e.flat} (${e.resident}) confirmed their appointment: ${p.label}.`);
+    // Send SMS confirmation to resident
+    if (e.mobile) {
+      sendSMS(e.mobile, `Hi ${e.resident.split(' ')[0]}, your Pre Works appointment at ${e.flat} Highbury Gardens is confirmed for ${p.label}. Your Durkan RLO will be in touch if anything changes.`);
+    }
   }
   renderResidentHome(); renderDashboard(); renderReports(); renderResAppts();
 }
@@ -1023,25 +1087,38 @@ function renderReports() {
 }
 
 /* ============================================================
-   COLOUR CHOICES — RLO uploads a swatch image, residents preview
+   EXAMPLES OF FINISHED WORK — RLO uploads photos, residents browse
 ============================================================ */
 function handleSwatchUpload(evt) {
-  const file = evt.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    db.colourSwatch.imageUrl = e.target.result; // data URL — works immediately, no server needed
-    db.colourSwatch.uploadedDate = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
-    showToast('swatch-toast', '✓ Swatch uploaded. Residents will see this on their next visit to Colour Choices.', 't-g', 4000);
-    renderColoursRlo();
-    if (db.currentResident) renderColoursResident();
-  };
-  reader.readAsDataURL(file);
+  const files = Array.from(evt.target.files || []); if (!files.length) return;
+  let loaded = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      db.finishedWork.images.push(e.target.result);
+      loaded++;
+      if (loaded === files.length) {
+        db.finishedWork.uploadedDate = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+        showToast('swatch-toast', `✓ ${files.length} photo${files.length!==1?'s':''} uploaded.`, 't-g', 4000);
+        renderColoursRlo();
+        if (db.currentResident) renderColoursResident();
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+  evt.target.value = '';
+}
+
+function removeFinishedPhoto(i) {
+  db.finishedWork.images.splice(i, 1);
+  renderColoursRlo();
+  if (db.currentResident) renderColoursResident();
 }
 
 function saveSwatchCaveat() {
   const txt = document.getElementById('swatch-caveat').value.trim();
   if (!txt) return;
-  db.colourSwatch.caveat = txt;
+  db.finishedWork.caveat = txt;
   showToast('swatch-toast', '✓ Caveat text updated.', 't-g', 3000);
   renderColoursRlo();
   if (db.currentResident) renderColoursResident();
@@ -1049,28 +1126,35 @@ function saveSwatchCaveat() {
 
 function renderColoursRlo() {
   const caveatBox = document.getElementById('swatch-caveat');
-  if (caveatBox && !caveatBox.value) caveatBox.value = db.colourSwatch.caveat;
-  const img = document.getElementById('swatch-preview-img');
+  if (caveatBox && !caveatBox.value) caveatBox.value = db.finishedWork.caveat;
+  const gal = document.getElementById('swatch-gallery-rlo');
+  if (gal) {
+    gal.innerHTML = db.finishedWork.images.length
+      ? db.finishedWork.images.map((src, i) => `
+        <div style="position:relative;display:inline-block;margin:0 8px 8px 0">
+          <img src="${src}" style="width:140px;height:100px;object-fit:cover;border-radius:8px;border:1px solid var(--dg);display:block"/>
+          <button onclick="removeFinishedPhoto(${i})" style="position:absolute;top:4px;right:4px;background:rgba(163,45,45,.9);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;line-height:1">×</button>
+        </div>`).join('')
+      : '<div class="empty-msg">No photos uploaded yet.</div>';
+  }
   const cav = document.getElementById('swatch-preview-caveat');
-  if (img) { img.src = db.colourSwatch.imageUrl; img.style.display = 'block'; }
-  if (cav) cav.textContent = db.colourSwatch.caveat;
+  if (cav) cav.textContent = db.finishedWork.caveat;
 }
 
 function renderColoursResident() {
   const body = document.getElementById('r-colours-body'); if (!body) return;
+  if (!db.finishedWork.images.length) {
+    body.innerHTML = '<div class="empty-msg">No photos uploaded yet. Check back soon.</div>';
+    return;
+  }
   body.innerHTML = `
-    <div class="vc" style="padding:0;overflow:hidden">
-      <img src="${db.colourSwatch.imageUrl}" style="width:100%;display:block" onerror="this.style.display='none'"/>
-      <div style="padding:11px">
-        <div style="font-size:12px;font-weight:700;color:var(--db);margin-bottom:5px">Kitchen &amp; bathroom colours</div>
-        <div style="font-size:11px;color:var(--dgd);line-height:1.5">${db.colourSwatch.caveat}</div>
-      </div>
-    </div>
+    ${db.finishedWork.images.map(src => `
+      <div class="vc" style="padding:0;overflow:hidden;margin-bottom:9px">
+        <img src="${src}" style="width:100%;display:block" onerror="this.style.display='none'"/>
+      </div>`).join('')}
     <div class="vc" style="padding:11px">
-      <div style="font-size:11px;color:var(--dgd);line-height:1.6">
-        <i class="ti ti-info-circle" style="color:var(--dj)"></i>
-        Use this as a starting point to think about your preferences. Your RLO will bring physical samples to your survey appointment so you can see and feel the real colours and finishes before deciding.
-      </div>
+      <div style="font-size:12px;font-weight:700;color:var(--db);margin-bottom:5px">About these photos</div>
+      <div style="font-size:11px;color:var(--dgd);line-height:1.5">${db.finishedWork.caveat}</div>
     </div>`;
 }
 
@@ -1109,7 +1193,7 @@ function renderUpdatesRlo() {
     <div class="panel" style="margin-bottom:8px;padding:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
         <strong style="font-size:13px;color:var(--db)">${u.title}</strong>
-        <span class="spill ${u.type==='Event'?'sp-j':'sp-b'}">${u.type}</span>
+        <span class="spill ${u.type==='Event'?'sp-j':u.type==='Job opportunity'?'sp-g':'sp-b'}">${u.type}</span>
       </div>
       <div style="font-size:12px;color:var(--dgd);margin-bottom:4px">${u.body}</div>
       <div style="font-size:11px;color:var(--dg)">${u.date?u.date+' · ':''}Posted ${u.posted}</div>
@@ -1120,10 +1204,10 @@ function renderUpdatesResident() {
   const body = document.getElementById('r-updates-body'); if (!body) return;
   if (!db.updates.length) { body.innerHTML = '<div class="empty-msg">No updates yet. Check back soon.</div>'; return; }
   body.innerHTML = db.updates.map(u => `
-    <div class="vc" style="padding:12px;border-left:3px solid ${u.type==='Event'?'var(--dj)':'var(--db)'}">
+    <div class="vc" style="padding:12px;border-left:3px solid ${u.type==='Event'?'var(--dj)':u.type==='Job opportunity'?'var(--green)':'var(--db)'}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;gap:8px">
         <strong style="font-size:13px;color:var(--db)">${u.title}</strong>
-        <span class="spill ${u.type==='Event'?'sp-j':'sp-b'}" style="flex-shrink:0">${u.type}</span>
+        <span class="spill ${u.type==='Event'?'sp-j':u.type==='Job opportunity'?'sp-g':'sp-b'}" style="flex-shrink:0">${u.type}</span>
       </div>
       <div style="font-size:11px;color:var(--dgd);line-height:1.5;margin-bottom:4px">${u.body}</div>
       <div style="font-size:10px;color:var(--dg)">${u.date?u.date+' · ':''}Posted ${u.posted}</div>
@@ -1136,4 +1220,246 @@ function renderUpdatesResident() {
 function flagUpdatesBadge() {
   const badge = document.getElementById('r-updates-n');
   if (badge) badge.style.display = 'inline-block';
+}
+
+/* ============================================================
+   CONTACT LOG — track attempts per resident, escalate after 3+
+============================================================ */
+const CONTACT_METHODS  = ['SMS', 'Phone call', 'Email', 'Letter', 'Knock on door'];
+const CONTACT_OUTCOMES = ['No response', 'Voicemail left', 'Wrong number', 'Spoke to resident', 'Will call back', 'Refused access'];
+
+function logContactAttempt(i) {
+  const e = db.schedule[i];
+  if (!e.contactLog) e.contactLog = [];
+
+  // Build a modal-style popup
+  const existing = document.getElementById('contact-log-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'contact-log-modal';
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,40,86,.5);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px`;
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:22px;width:100%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+      <div style="font-size:15px;font-weight:700;color:#002856;margin-bottom:4px">Log contact attempt</div>
+      <div style="font-size:12px;color:#6b6b6b;margin-bottom:16px">${e.resident} · ${e.flat}</div>
+
+      <label style="font-size:11px;font-weight:600;color:#6b6b6b;display:block;margin-bottom:4px">Contact method</label>
+      <select id="cl-method" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #D9D8D6;font-size:13px;margin-bottom:12px">
+        ${CONTACT_METHODS.map(m=>`<option>${m}</option>`).join('')}
+      </select>
+
+      <label style="font-size:11px;font-weight:600;color:#6b6b6b;display:block;margin-bottom:4px">Outcome</label>
+      <select id="cl-outcome" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #D9D8D6;font-size:13px;margin-bottom:12px">
+        ${CONTACT_OUTCOMES.map(o=>`<option>${o}</option>`).join('')}
+      </select>
+
+      <label style="font-size:11px;font-weight:600;color:#6b6b6b;display:block;margin-bottom:4px">Note (optional)</label>
+      <textarea id="cl-note" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #D9D8D6;font-size:13px;resize:none;margin-bottom:16px" rows="2" placeholder="e.g. Called twice, no answer. Will try letter."></textarea>
+
+      <div style="display:flex;gap:8px">
+        <button onclick="saveContactAttempt(${i})" style="flex:1;background:#008C79;color:#fff;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">Save attempt</button>
+        <button onclick="document.getElementById('contact-log-modal').remove()" style="padding:10px 16px;border-radius:9px;border:1px solid #D9D8D6;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function saveContactAttempt(i) {
+  const e = db.schedule[i];
+  if (!e.contactLog) e.contactLog = [];
+
+  const method  = document.getElementById('cl-method').value;
+  const outcome = document.getElementById('cl-outcome').value;
+  const note    = document.getElementById('cl-note').value.trim();
+  const now     = new Date();
+  const dateStr = now.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+  const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+
+  e.contactLog.push({ method, outcome, note, date:dateStr, time:timeStr });
+
+  document.getElementById('contact-log-modal').remove();
+
+  // Auto-notify if threshold reached
+  const attempts = e.contactLog.length;
+  if (attempts === 3) {
+    pushNotification('message', `⚠ ${e.flat} (${e.resident}) has had 3 contact attempts with no response. Consider escalating.`);
+  }
+  if (attempts === 5) {
+    pushNotification('message', `🔴 ${e.flat} (${e.resident}) — 5 failed contact attempts. Escalation to L&Q recommended.`);
+  }
+
+  renderDashboard();
+}
+
+function viewContactLog(i) {
+  const e = db.schedule[i];
+  const log = e.contactLog || [];
+
+  const existing = document.getElementById('contact-log-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'contact-log-modal';
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,40,86,.5);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px`;
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:22px;width:100%;max-width:420px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-size:15px;font-weight:700;color:#002856">Contact log</div>
+        <button onclick="document.getElementById('contact-log-modal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#6b6b6b">×</button>
+      </div>
+      <div style="font-size:12px;color:#6b6b6b;margin-bottom:14px">${e.resident} · ${e.flat} · ${log.length} attempt${log.length!==1?'s':''}</div>
+
+      ${log.length === 0
+        ? '<div style="font-size:12px;color:#6b6b6b;text-align:center;padding:20px 0">No contact attempts logged yet.</div>'
+        : log.map((l,idx) => `
+          <div style="background:#f2f3f5;border-radius:9px;padding:10px 12px;margin-bottom:8px;border-left:3px solid ${l.outcome==='No response'||l.outcome==='Voicemail left'?'#854f0b':l.outcome==='Spoke to resident'?'#3b6d11':'#002856'}">
+            <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+              <strong style="font-size:12px;color:#002856">Attempt ${idx+1} — ${l.method}</strong>
+              <span style="font-size:10px;color:#6b6b6b">${l.date} ${l.time}</span>
+            </div>
+            <div style="font-size:11px;color:#6b6b6b;margin-bottom:${l.note?'3px':'0'}">${l.outcome}</div>
+            ${l.note?`<div style="font-size:11px;color:#002856;font-style:italic">"${l.note}"</div>`:''}
+          </div>`).join('')
+      }
+
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button onclick="document.getElementById('contact-log-modal').remove();logContactAttempt(${i})" style="flex:1;background:#008C79;color:#fff;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">+ Log new attempt</button>
+        <button onclick="exportContactLog(${i})" style="padding:10px 14px;border-radius:9px;border:1px solid #D9D8D6;background:#fff;font-size:12px;cursor:pointer">Export</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function escalateResident(i) {
+  const e = db.schedule[i];
+  const log = e.contactLog || [];
+  const summary = log.map((l,idx) => `Attempt ${idx+1}: ${l.date} ${l.time} — ${l.method} — ${l.outcome}${l.note?' ('+l.note+')':''}`).join('\n');
+
+  // In production this would send an email/SMS to L&Q — for now opens a pre-filled email
+  const subject = encodeURIComponent(`Resident non-response — ${e.flat}, Highbury Gardens`);
+  const body = encodeURIComponent(
+    `Dear L&Q,\n\nWe have been unable to contact the resident at ${e.flat}, Highbury Gardens (${e.resident}) after ${log.length} attempts.\n\nContact history:\n${summary}\n\nCould you please assist with making contact to arrange the required works appointment.\n\nKind regards,\nDurkan Regen RLO Team`
+  );
+  window.open(`mailto:?subject=${subject}&body=${body}`);
+}
+
+function exportContactLog(i) {
+  const e = db.schedule[i];
+  const log = e.contactLog || [];
+  if (!log.length) return;
+
+  // Build a simple CSV
+  const rows = [
+    ['Flat','Resident','Attempt','Date','Time','Method','Outcome','Note'],
+    ...log.map((l,idx) => [e.flat, e.resident, idx+1, l.date, l.time, l.method, l.outcome, l.note||''])
+  ];
+  const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `Contact_Log_${e.flat.replace(' ','_')}_${e.resident.split(' ').join('_')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('contact-log-modal').remove();
+}
+
+/* ============================================================
+   TEST SMS — RLO sends a test text to verify Twilio works
+============================================================ */
+async function sendTestSMS() {
+  const number = document.getElementById('test-sms-number').value.trim();
+  if (!number) { showToast('test-sms-toast', 'Please enter a mobile number.', 't-r'); return; }
+  showToast('test-sms-toast', 'Sending test SMS...', 't-j', 10000);
+  const result = await sendSMS(number, 'This is a test message from the Durkan Regen resident app. SMS integration is working correctly! 🎉');
+  if (result && result.success) {
+    showToast('test-sms-toast', `✓ Test SMS sent successfully to ${number}. Check your phone!`, 't-g', 6000);
+  } else if (result && result.skipped) {
+    showToast('test-sms-toast', 'No number provided.', 't-r');
+  } else {
+    const err = result && result.error ? result.error : 'Unknown error';
+    showToast('test-sms-toast', `SMS not sent: ${err}. Check Vercel environment variables are set and the function is deployed.`, 't-r', 8000);
+  }
+}
+
+/* ============================================================
+   APPOINTMENT REMINDERS — one click sends SMS to everyone
+   with a confirmed appointment tomorrow
+============================================================ */
+async function sendTomorrowReminders() {
+  if (!db.schedule.length) {
+    showToast('reminder-toast', 'No schedule loaded — upload and publish first.', 't-r');
+    return;
+  }
+
+  // Build tomorrow's date string in the same format slots use: e.g. "Tue 8 Jul"
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+  const tomorrowLong = tomorrow.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
+
+  // Find confirmed appointments for tomorrow (match on the date portion, flexible)
+  const matches = db.schedule.filter(e =>
+    e.status === 'confirmed' &&
+    e.confirmedDate &&
+    (e.confirmedDate.includes(tomorrowStr) ||
+     e.confirmedDate.toLowerCase().includes(tomorrow.toLocaleDateString('en-GB',{day:'numeric',month:'short'}).toLowerCase()))
+  );
+
+  if (!matches.length) {
+    showToast('reminder-toast', `No confirmed appointments found for tomorrow (${tomorrowStr}).`, 't-j', 5000);
+    return;
+  }
+
+  showToast('reminder-toast', `Sending ${matches.length} reminder${matches.length!==1?'s':''}...`, 't-j', 10000);
+
+  let sent = 0, skipped = 0, failed = 0;
+  const results = [];
+
+  for (const e of matches) {
+    if (!e.mobile) {
+      skipped++;
+      results.push({ flat: e.flat, resident: e.resident, status: 'skipped', reason: 'No mobile number' });
+      continue;
+    }
+    const msg = `Hi ${e.resident.split(' ')[0]}, a reminder that your ${e.workType} appointment at ${e.flat} Highbury Gardens is tomorrow (${tomorrowLong}). Please ensure access is available. If you need to rearrange, contact your RLO. Durkan Regen.`;
+    const result = await sendSMS(e.mobile, msg);
+    if (result && result.success) {
+      sent++;
+      results.push({ flat: e.flat, resident: e.resident, status: 'sent' });
+    } else {
+      failed++;
+      results.push({ flat: e.flat, resident: e.resident, status: 'failed', reason: (result && result.error) || 'Unknown' });
+    }
+  }
+
+  // Show summary
+  const summaryEl = document.getElementById('reminder-summary');
+  if (summaryEl) {
+    summaryEl.style.display = 'block';
+    summaryEl.innerHTML = `
+      <div style="background:var(--dbg);border-radius:9px;padding:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--db);margin-bottom:8px">
+          Reminder summary — ${tomorrowStr}:
+          <span style="color:var(--green)">${sent} sent</span>${skipped?` · <span style="color:var(--amber)">${skipped} skipped</span>`:''}${failed?` · <span style="color:var(--red)">${failed} failed</span>`:''}
+        </div>
+        ${results.map(r => `
+          <div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid var(--dg)">
+            <span style="color:var(--db)">${r.flat} — ${r.resident}</span>
+            <span style="color:${r.status==='sent'?'var(--green)':r.status==='skipped'?'var(--amber)':'var(--red)'};font-weight:600">
+              ${r.status==='sent'?'✓ Sent':r.status==='skipped'?'— '+r.reason:'✗ '+r.reason}
+            </span>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  if (sent > 0) {
+    showToast('reminder-toast', `✓ ${sent} reminder${sent!==1?'s':''} sent for tomorrow.`, 't-g', 6000);
+    pushNotification('message', `${sent} appointment reminder${sent!==1?'s':''} sent for ${tomorrowStr}.`);
+  } else if (skipped > 0 && failed === 0) {
+    showToast('reminder-toast', `No reminders sent — ${skipped} resident${skipped!==1?'s have':' has'} no mobile number on file.`, 't-r', 6000);
+  } else {
+    showToast('reminder-toast', `Reminders failed — check the Twilio setup and Vercel environment variables.`, 't-r', 6000);
+  }
 }
