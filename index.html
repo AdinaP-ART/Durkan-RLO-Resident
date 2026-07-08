@@ -91,10 +91,10 @@
               <button class="vbtn" onclick="rNav(2)">View my appointments</button>
             </div>
             <div class="ph-sect">Quick actions</div>
-            <div class="mc" onclick="rNav(2)"><div class="mi mi-b"><i class="ti ti-calendar"></i></div><div style="flex:1"><div class="mi-t">Pre Works appointments</div><div class="mi-s" id="r-appt-sub">No appointments yet</div></div><span class="mc-pill pill-b" id="r-appt-n">0</span></div>
+            <div class="mc" onclick="rNav(2)"><div class="mi mi-b"><i class="ti ti-calendar"></i></div><div style="flex:1"><div class="mi-t">Choose your works start date</div><div class="mi-s" id="r-appt-sub">No appointments yet</div></div><span class="mc-pill pill-b" id="r-appt-n">0</span></div>
             <div class="mc" onclick="rNav(7)"><div class="mi mi-j"><i class="ti ti-hard-hat"></i></div><div style="flex:1"><div class="mi-t">During Works</div><div class="mi-s" id="r-during-sub">Tomorrow's works schedule</div></div><span class="mc-pill pill-j" id="r-during-n" style="display:none">New</span></div>
-            <div class="mc" onclick="rNav(8)"><div class="mi" style="background:#fdeef0;color:#c2185b"><i class="ti ti-palette"></i></div><div style="flex:1"><div class="mi-t">Colour choices</div><div class="mi-s">Start thinking about your kitchen &amp; bathroom</div></div></div>
-            <div class="mc" onclick="rNav(9)"><div class="mi" style="background:#eef3fc;color:#1d4ed8"><i class="ti ti-speakerphone"></i></div><div style="flex:1"><div class="mi-t">Project updates &amp; events</div><div class="mi-s" id="r-updates-sub">Latest site news</div></div><span class="mc-pill pill-j" id="r-updates-n" style="display:none">New</span></div>
+            <div class="mc" onclick="rNav(8)"><div class="mi" style="background:#fdeef0;color:#c2185b"><i class="ti ti-photo"></i></div><div style="flex:1"><div class="mi-t">Examples of finished work</div><div class="mi-s">See completed kitchens &amp; bathrooms</div></div></div>
+            <div class="mc" onclick="rNav(9)"><div class="mi" style="background:#eef3fc;color:#1d4ed8"><i class="ti ti-speakerphone"></i></div><div style="flex:1"><div class="mi-t">Project updates &amp; events</div><div class="mi-s" id="r-updates-sub">Site news, events &amp; job opportunities</div></div><span class="mc-pill pill-j" id="r-updates-n" style="display:none">New</span></div>
             <div class="mc" onclick="rNav(3)"><div class="mi mi-r"><i class="ti ti-alert-triangle"></i></div><div style="flex:1"><div class="mi-t">Report an issue</div><div class="mi-s" id="r-def-sub">Report a problem in your home</div></div><span class="mc-pill pill-r" id="r-def-n" style="display:none"></span></div>
             <div class="mc" onclick="rNav(4)"><div class="mi mi-a"><i class="ti ti-mail"></i></div><div style="flex:1"><div class="mi-t">Message Durkan</div><div class="mi-s">Contact your RLO</div></div></div>
             <div class="mc" onclick="rNav(6)"><div class="mi mi-j"><i class="ti ti-star"></i></div><div style="flex:1"><div class="mi-t">Satisfaction survey</div><div class="mi-s">Share your feedback</div></div></div>
@@ -113,7 +113,7 @@
       <div id="rp-appts" class="page">
         <div class="phone-wrap"><div class="phone"><div class="phone-in">
           <div class="notch"><div class="nb"></div></div>
-          <div class="ph-hdr"><div class="ph-eye">My appointments</div><div class="ph-h sm" id="r-appts-hdr">Highbury Gardens</div><div class="ph-s">Select your preferred dates</div></div>
+          <div class="ph-hdr"><div class="ph-eye">Works start date</div><div class="ph-h sm" id="r-appts-hdr">Highbury Gardens</div><div class="ph-s">Choose the start date that suits you best</div></div>
           <div class="jbar"></div>
           <div class="ph-body" id="r-appts-body"><div class="empty-msg">Waiting for schedule from your RLO...</div></div>
           <nav class="pnav">
@@ -253,7 +253,7 @@
       <div id="rp-colours" class="page">
         <div class="phone-wrap"><div class="phone"><div class="phone-in">
           <div class="notch"><div class="nb"></div></div>
-          <div class="ph-hdr"><div class="ph-eye">Colour choices</div><div class="ph-h sm">Kitchen &amp; bathroom colours</div><div class="ph-s">Start thinking ahead of your survey</div></div>
+          <div class="ph-hdr"><div class="ph-eye">Finished work</div><div class="ph-h sm">Examples of finished work</div><div class="ph-s">Completed kitchens &amp; bathrooms from Durkan projects</div></div>
           <div class="jbar"></div>
           <div class="ph-body" id="r-colours-body">
             <div class="empty-msg">No colour swatch uploaded yet.</div>
@@ -272,7 +272,7 @@
       <div id="rp-updates" class="page">
         <div class="phone-wrap"><div class="phone"><div class="phone-in">
           <div class="notch"><div class="nb"></div></div>
-          <div class="ph-hdr"><div class="ph-eye">Updates</div><div class="ph-h sm">Project updates &amp; events</div><div class="ph-s">Latest news from the site team</div></div>
+          <div class="ph-hdr"><div class="ph-eye">Updates</div><div class="ph-h sm">Updates, events &amp; jobs</div><div class="ph-s">News and opportunities from the site team</div></div>
           <div class="jbar"></div>
           <div class="ph-body" id="r-updates-body">
             <div class="empty-msg">No updates yet. Check back soon.</div>
@@ -331,7 +331,7 @@
 
       <!-- BO1: DASHBOARD -->
       <div id="bp-dashboard" class="page">
-        <div class="pg-hdr"><div><div class="pg-title">Dashboard</div><div class="pg-sub">Highbury Gardens · live overview</div></div><button class="btn btn-j" onclick="bNav(2)"><i class="ti ti-upload"></i> Upload schedule</button></div>
+        <div class="pg-hdr"><div><div class="pg-title">Dashboard</div><div class="pg-sub">Highbury Gardens · live overview</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-o" onclick="bNav(9)"><i class="ti ti-speakerphone"></i> Post update</button><button class="btn btn-j" onclick="bNav(2)"><i class="ti ti-upload"></i> Upload schedule</button></div></div>
         <div class="metrics">
           <div class="met"><div class="met-l">Total flats</div><div class="met-v" id="m-total">0</div></div>
           <div class="met"><div class="met-l">Confirmed</div><div class="met-v jade" id="m-conf">0</div></div>
@@ -352,7 +352,7 @@
         <div class="pg-hdr"><div><div class="pg-title">Upload Pre Works schedule</div><div class="pg-sub">Upload Excel — unique access codes and QR codes generated per flat</div></div><button class="btn btn-o" onclick="bNav(1)"><i class="ti ti-arrow-left"></i> Back to dashboard</button></div>
         <div class="panel">
           <div class="panel-t">Step 1 — Upload Excel (.xlsx)</div>
-          <div class="upload-z" id="upload-zone"><input type="file" accept=".xlsx,.xls,.csv" onchange="handleFile(event)"/><i class="ti ti-file-spreadsheet" style="font-size:28px;display:block;margin:0 auto 7px;pointer-events:none"></i><div style="pointer-events:none">Click or drag to upload works-schedule.xlsx</div><div style="font-size:11px;margin-top:3px;pointer-events:none">Columns: <strong>Flat, Resident, Work Type, Date 1, Date 2, Date 3</strong></div></div>
+          <div class="upload-z" id="upload-zone"><input type="file" accept=".xlsx,.xls,.csv" onchange="handleFile(event)"/><i class="ti ti-file-spreadsheet" style="font-size:28px;display:block;margin:0 auto 7px;pointer-events:none"></i><div style="pointer-events:none">Click or drag to upload works-schedule.xlsx</div><div style="font-size:11px;margin-top:3px;pointer-events:none">Columns: <strong>Flat, Resident, Work Type, Mobile, Date 1, Date 2, Date 3</strong></div></div>
           <div id="upload-prog" style="display:none"><div style="font-size:12px;color:var(--dgd);margin-bottom:4px" id="prog-lbl">Reading...</div><div class="prog"><div class="prog-f" id="prog-fill"></div></div></div>
           <div class="toast" id="parse-toast" style="display:none"></div>
           <a href="#" onclick="loadDemo();return false" style="font-size:12px;color:var(--dj);display:block;margin-top:8px">Or load the demo schedule →</a>
@@ -370,6 +370,25 @@
             <button class="btn btn-o" onclick="bNav(7)"><i class="ti ti-mail-forward"></i> Generate resident letters</button>
           </div>
           <div class="toast t-g" id="publish-toast" style="display:none">✓ Published — residents can now log in.</div>
+        </div>
+        <div class="panel">
+          <div class="panel-t">Appointment reminders <span class="spill sp-j">SMS</span></div>
+          <p style="font-size:12px;color:var(--dgd);margin-bottom:10px">Sends a reminder text to every resident with a confirmed appointment for <strong>tomorrow</strong> who has a mobile number on file. Run this once at the end of each day.</p>
+          <button class="btn btn-j" onclick="sendTomorrowReminders()"><i class="ti ti-bell-ringing"></i> Send tomorrow's reminders</button>
+          <div class="toast" id="reminder-toast" style="display:none"></div>
+          <div id="reminder-summary" style="display:none;margin-top:10px"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-t">Test SMS <span class="spill sp-j">Twilio</span></div>
+          <p style="font-size:12px;color:var(--dgd);margin-bottom:10px">Send a test text to check the SMS integration is working. Enter your own mobile number to try it.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div style="flex:1;min-width:180px">
+              <label class="flbl">Mobile number</label>
+              <input class="field" id="test-sms-number" placeholder="07XXX XXXXXX" style="margin-bottom:0"/>
+            </div>
+            <button class="btn btn-j" onclick="sendTestSMS()"><i class="ti ti-send"></i> Send test SMS</button>
+          </div>
+          <div class="toast" id="test-sms-toast" style="display:none"></div>
         </div>
       </div>
 
@@ -400,15 +419,18 @@
         </div>
       </div>
 
+      <!-- BO-SMS TEST (accessible via During Works) -->
+      <div id="sms-test-panel-holder"></div>
+
       <!-- BO-COLOURS: COLOUR SWATCH MANAGEMENT -->
       <div id="bp-colours" class="page">
-        <div class="pg-hdr"><div><div class="pg-title">Colour choices</div><div class="pg-sub">Upload a standard colour swatch for residents to consider ahead of their survey</div></div><button class="btn btn-o" onclick="bNav(1)"><i class="ti ti-arrow-left"></i> Back to dashboard</button></div>
+        <div class="pg-hdr"><div><div class="pg-title">Examples of finished work</div><div class="pg-sub">Upload photos of completed kitchens and bathrooms for residents to browse</div></div><button class="btn btn-o" onclick="bNav(1)"><i class="ti ti-arrow-left"></i> Back to dashboard</button></div>
         <div class="panel">
-          <div class="panel-t">Step 1 — Upload swatch image</div>
+          <div class="panel-t">Step 1 — Upload photos (you can select several at once)</div>
           <div class="upload-z" id="swatch-upload-zone">
-            <input type="file" accept="image/*" onchange="handleSwatchUpload(event)"/>
+            <input type="file" accept="image/*" multiple onchange="handleSwatchUpload(event)"/>
             <i class="ti ti-palette" style="font-size:28px;display:block;margin:0 auto 7px;pointer-events:none"></i>
-            <div style="pointer-events:none">Click or drag to upload a colour swatch image (JPG or PNG)</div>
+            <div style="pointer-events:none">Click or drag to upload photos of finished work (JPG or PNG — multiple allowed)</div>
           </div>
           <div class="toast t-g" id="swatch-toast" style="display:none"></div>
         </div>
@@ -418,11 +440,9 @@
           <button class="btn btn-o btn-sm" onclick="saveSwatchCaveat()">Save caveat text</button>
         </div>
         <div class="panel">
-          <div class="panel-t">Preview — what residents will see</div>
-          <div style="max-width:320px;border:1px solid var(--dg);border-radius:10px;overflow:hidden">
-            <img id="swatch-preview-img" src="" style="width:100%;display:block" onerror="this.style.display='none'"/>
-            <div style="padding:10px;font-size:11px;color:var(--dgd);background:var(--dbg)" id="swatch-preview-caveat"></div>
-          </div>
+          <div class="panel-t">Current photos — what residents will see</div>
+          <div id="swatch-gallery-rlo"></div>
+          <div style="padding:10px;font-size:11px;color:var(--dgd);background:var(--dbg);border-radius:8px;margin-top:8px" id="swatch-preview-caveat"></div>
         </div>
       </div>
 
@@ -432,9 +452,9 @@
         <div class="panel">
           <div class="panel-t">Post a new update</div>
           <label class="flbl">Title</label>
-          <input class="field" id="update-title" placeholder="e.g. Scaffolding removal next week"/>
+          <input class="field" id="update-title" placeholder="e.g. Scaffolding removal next week / Apprentice opportunities with Durkan"/>
           <label class="flbl">Type</label>
-          <select class="field" id="update-type"><option>Project update</option><option>Event</option></select>
+          <select class="field" id="update-type"><option>Project update</option><option>Event</option><option>Job opportunity</option></select>
           <label class="flbl">Details</label>
           <textarea class="field" id="update-body" rows="3" placeholder="e.g. Scaffolding on Grove Road will be removed week commencing 23 June. Please be aware of contractor vehicles on site."></textarea>
           <label class="flbl">Date (optional — for events)</label>
@@ -519,3 +539,4 @@
 </script>
 </body>
 </html>
+
