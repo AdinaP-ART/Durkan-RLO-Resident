@@ -218,7 +218,7 @@
               <div style="width:48px;height:48px;background:var(--djl);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;color:var(--dj);font-size:24px"><i class="ti ti-star-filled"></i></div>
               <div style="font-size:14px;font-weight:700;color:var(--db);margin-bottom:6px">Share your experience</div>
               <div style="font-size:11px;color:var(--dgd);margin-bottom:14px;line-height:1.5">Please take a moment to complete our satisfaction survey. It only takes 3 minutes.</div>
-              <a href="https://www.surveymonkey.com/r/RD034_LandQInternals26_37" target="_blank" style="display:block;width:100%;background:var(--dj);color:var(--dw);border-radius:9px;padding:12px;font-size:13px;font-weight:700;text-decoration:none">Open satisfaction survey →</a>
+              <a href="https://www.surveymonkey.com/r/RD034_LandQInternals26_27" target="_blank" style="display:block;width:100%;background:var(--dj);color:var(--dw);border-radius:9px;padding:12px;font-size:13px;font-weight:700;text-decoration:none">Open satisfaction survey →</a>
               <div style="font-size:10px;color:var(--dgd);margin-top:10px">Opens in your browser</div>
             </div>
           </div>
@@ -296,6 +296,18 @@
   <header class="hdr">
     <div class="logo-svg"><div class="logo-box"><span>D</span></div><div class="logo-text"><span class="logo-durkan">DURKAN</span><span class="logo-regen">regen</span></div></div>
     <div class="hdr-right">
+      <!-- Mobile RLO nav dropdown — only visible on small screens -->
+      <select id="rlo-mobile-nav" class="rlo-mobile-nav" onchange="bNav(parseInt(this.value))" style="display:none">
+        <option value="1">Dashboard</option>
+        <option value="2">Pre Works Schedule</option>
+        <option value="3">During Works</option>
+        <option value="8">Finished Work Photos</option>
+        <option value="9">Updates &amp; Events</option>
+        <option value="4">Issues</option>
+        <option value="5">Messages</option>
+        <option value="7">Resident Letters</option>
+        <option value="6">Reports</option>
+      </select>
       <!-- Notification bell -->
       <button onclick="showPendingNotifications()" style="position:relative;background:none;border:none;cursor:pointer;padding:6px;color:var(--dgd)">
         <i class="ti ti-bell" style="font-size:20px"></i>
@@ -322,8 +334,10 @@
             <button class="btn btn-j" style="width:100%;justify-content:center" onclick="rloLogin()">Sign in to RLO Portal</button>
             <div style="margin-top:12px;background:var(--dbl);border-radius:8px;padding:10px;font-size:11px;color:var(--dgd)">
               <strong style="color:var(--db)">Demo passcodes:</strong><br>
-              <span style="font-family:monospace;font-weight:700;color:var(--db)">RLO-2025</span> — Sarah Okafor<br>
-              <span style="font-family:monospace;font-weight:700;color:var(--db)">SONIA-2025</span> — Sonia Williams
+              <span style="font-family:monospace;font-weight:700;color:var(--db)">RLO-2025</span> — Adina Poncis<br>
+              <span style="font-family:monospace;font-weight:700;color:var(--db)">SONIA-2025</span> — Sonia Carmichael<br>
+              <span style="font-family:monospace;font-weight:700;color:var(--db)">DEE-2025</span> — Dee Blake<br>
+              <span style="font-family:monospace;font-weight:700;color:var(--db)">ALANNAH-2025</span> — Alannah Kelly-Forbes
             </div>
           </div>
         </div>
@@ -459,7 +473,14 @@
           <textarea class="field" id="update-body" rows="3" placeholder="e.g. Scaffolding on Grove Road will be removed week commencing 23 June. Please be aware of contractor vehicles on site."></textarea>
           <label class="flbl">Date (optional — for events)</label>
           <input class="field" id="update-date" placeholder="e.g. Mon 23 Jun"/>
-          <button class="btn btn-j" onclick="postUpdate()"><i class="ti ti-speakerphone"></i> Post update to all residents</button>
+          <label class="flbl">Photos (optional — you can select several)</label>
+          <div class="upload-z" style="padding:14px">
+            <input type="file" accept="image/*" multiple onchange="handleUpdatePhotos(event)"/>
+            <i class="ti ti-photo" style="font-size:22px;display:block;margin:0 auto 4px;pointer-events:none"></i>
+            <div style="pointer-events:none;font-size:11px">Tap to attach photos</div>
+          </div>
+          <div id="update-photo-preview" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+          <button class="btn btn-j" onclick="postUpdate()"><i class="ti ti-speakerphone"></i> Post to all residents</button>
           <div class="toast t-g" id="update-toast" style="display:none"></div>
         </div>
         <div class="panel">
@@ -539,4 +560,5 @@
 </script>
 </body>
 </html>
+
 

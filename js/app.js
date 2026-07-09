@@ -145,6 +145,13 @@ function buildRloNav(cur) {
   document.getElementById('rlo-nav').innerHTML = rloNavDef.map(n =>
     `<button class="si${n.i===cur?' on':''}" onclick="bNav(${n.i})"><i class="ti ${n.icon}"></i>${n.label}</button>`
   ).join('');
+  // Keep mobile dropdown in sync and only show it when logged in
+  const mob = document.getElementById('rlo-mobile-nav');
+  if (mob) {
+    mob.value = cur || 1;
+    if (db.currentRLO) mob.classList.add('show');
+    else mob.classList.remove('show');
+  }
 }
 
 function rloShowPage(id) {
@@ -185,6 +192,7 @@ function resLogin(auto = false) {
     chip.textContent = '🔒 ' + match.flat; chip.style.display = 'inline-block';
     renderResidentHome();
     rNav(1);
+    setTimeout(() => showResidentUpdatePopup(), 800);
   } else if (!auto) {
     if (inp) inp.classList.add('error');
     if (err) err.style.display = 'block';
@@ -794,6 +802,7 @@ function updateDuringBadge() {
 ============================================================ */
 function renderResidentHome() {
   if (!db.currentResident) return;
+  updateResidentUpdatesBadge();
   const my    = db.schedule.filter(e=>e.flat===db.currentResident.flat);
   const first = my[0];
   const badge = document.getElementById('r-home-badge');
@@ -1162,6 +1171,29 @@ function renderColoursResident() {
    UPDATES — combined project updates + events
 ============================================================ */
 let updateIdCounter = 1;
+let stagedUpdatePhotos = [];
+
+function handleUpdatePhotos(evt) {
+  const files = Array.from(evt.target.files || []); if (!files.length) return;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      stagedUpdatePhotos.push(e.target.result);
+      renderUpdatePhotoPreview();
+    };
+    reader.readAsDataURL(file);
+  });
+  evt.target.value = '';
+}
+
+function renderUpdatePhotoPreview() {
+  const wrap = document.getElementById('update-photo-preview'); if (!wrap) return;
+  wrap.innerHTML = stagedUpdatePhotos.map((src, i) => `
+    <div style="position:relative;display:inline-block">
+      <img src="${src}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--dg)"/>
+      <button onclick="stagedUpdatePhotos.splice(${i},1);renderUpdatePhotoPreview()" style="position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1">×</button>
+    </div>`).join('');
+}
 
 function postUpdate() {
   const title = document.getElementById('update-title').value.trim();
@@ -1173,16 +1205,33 @@ function postUpdate() {
   db.updates.unshift({
     id: 'UPD-' + String(updateIdCounter++).padStart(3, '0'),
     title, body, type, date,
+    photos: [...stagedUpdatePhotos],
     posted: new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short' }),
+    isNew: true,
   });
+  stagedUpdatePhotos = [];
+  renderUpdatePhotoPreview();
 
   document.getElementById('update-title').value = '';
   document.getElementById('update-body').value  = '';
   document.getElementById('update-date').value  = '';
 
-  showToast('update-toast', '✓ Posted — all residents will see this update.', 't-g', 4000);
+  showToast('update-toast', '✓ Posted — this stays live alongside your other updates.', 't-g', 4000);
   renderUpdatesRlo();
-  if (db.currentResident) { renderUpdatesResident(); flagUpdatesBadge(); }
+  updateResidentUpdatesBadge();
+  if (db.currentResident) { renderUpdatesResident(); }
+}
+
+// Count how many updates the current resident hasn't seen yet
+function updateResidentUpdatesBadge() {
+  const badge = document.getElementById('r-updates-n');
+  const sub   = document.getElementById('r-updates-sub');
+  const newCount = db.updates.filter(u => u.isNew).length;
+  if (badge) {
+    if (newCount > 0) { badge.textContent = newCount + ' new'; badge.style.display = 'inline-block'; }
+    else badge.style.display = 'none';
+  }
+  if (sub && newCount > 0) sub.textContent = newCount + ' new update' + (newCount!==1?'s':'') + ' — tap to view';
 }
 
 function renderUpdatesRlo() {
@@ -1191,13 +1240,26 @@ function renderUpdatesRlo() {
   if (!db.updates.length) { list.innerHTML = '<div class="empty-msg">No updates posted yet.</div>'; return; }
   list.innerHTML = db.updates.map(u => `
     <div class="panel" style="margin-bottom:8px;padding:12px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;gap:8px">
         <strong style="font-size:13px;color:var(--db)">${u.title}</strong>
-        <span class="spill ${u.type==='Event'?'sp-j':u.type==='Job opportunity'?'sp-g':'sp-b'}">${u.type}</span>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <span class="spill ${u.type==='Event'?'sp-j':u.type==='Job opportunity'?'sp-g':'sp-b'}">${u.type}</span>
+          <button class="btn btn-r btn-sm" onclick="deleteUpdate('${u.id}')" title="Delete this post"><i class="ti ti-trash"></i></button>
+        </div>
       </div>
       <div style="font-size:12px;color:var(--dgd);margin-bottom:4px">${u.body}</div>
+      ${u.photos&&u.photos.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin:6px 0">${u.photos.map(p=>`<img src="${p}" style="width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid var(--dg)"/>`).join('')}</div>`:''}
       <div style="font-size:11px;color:var(--dg)">${u.date?u.date+' · ':''}Posted ${u.posted}</div>
     </div>`).join('');
+}
+
+function deleteUpdate(id) {
+  if (!confirm('Delete this post? It will be removed from the resident app too.')) return;
+  db.updates = db.updates.filter(u => u.id !== id);
+  renderUpdatesRlo();
+  updateResidentUpdatesBadge();
+  if (db.currentResident) renderUpdatesResident();
+  showToast('update-toast', '✓ Post deleted.', 't-g', 3000);
 }
 
 function renderUpdatesResident() {
@@ -1210,16 +1272,40 @@ function renderUpdatesResident() {
         <span class="spill ${u.type==='Event'?'sp-j':u.type==='Job opportunity'?'sp-g':'sp-b'}" style="flex-shrink:0">${u.type}</span>
       </div>
       <div style="font-size:11px;color:var(--dgd);line-height:1.5;margin-bottom:4px">${u.body}</div>
+      ${u.photos&&u.photos.length?`<div style="display:flex;flex-direction:column;gap:6px;margin:6px 0">${u.photos.map(p=>`<img src="${p}" style="width:100%;border-radius:8px;display:block"/>`).join('')}</div>`:''}
       <div style="font-size:10px;color:var(--dg)">${u.date?u.date+' · ':''}Posted ${u.posted}</div>
     </div>`).join('');
-  // Clear badge once viewed
+  // Mark all as read once viewed, clear badge
+  db.updates.forEach(u => u.isNew = false);
   const badge = document.getElementById('r-updates-n');
   if (badge) badge.style.display = 'none';
+  const sub = document.getElementById('r-updates-sub');
+  if (sub) sub.textContent = 'Site news, events & job opportunities';
 }
 
 function flagUpdatesBadge() {
-  const badge = document.getElementById('r-updates-n');
-  if (badge) badge.style.display = 'inline-block';
+  updateResidentUpdatesBadge();
+}
+
+// Resident pop-up when logging in and there are new updates
+function showResidentUpdatePopup() {
+  if (!db.currentResident) return;
+  const newCount = db.updates.filter(u => u.isNew).length;
+  if (!newCount) return;
+  document.getElementById('res-update-popup')?.remove();
+  const popup = document.createElement('div');
+  popup.id = 'res-update-popup';
+  popup.style.cssText = `position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--db);color:#fff;border-radius:12px;padding:12px 16px;box-shadow:0 4px 20px rgba(0,40,86,.3);max-width:300px;display:flex;gap:10px;align-items:center;animation:slideIn .3s ease;cursor:pointer`;
+  popup.onclick = () => { rNav(9); popup.remove(); };
+  popup.innerHTML = `
+    <div style="width:36px;height:36px;border-radius:9px;background:var(--dj);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-speakerphone" style="font-size:18px"></i></div>
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:700;margin-bottom:1px">${newCount} new update${newCount!==1?'s':''}</div>
+      <div style="font-size:11px;opacity:.8">Tap to see the latest project news</div>
+    </div>
+    <button onclick="event.stopPropagation();document.getElementById('res-update-popup').remove()" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;padding:0;line-height:1">×</button>`;
+  document.body.appendChild(popup);
+  setTimeout(() => popup.remove(), 10000);
 }
 
 /* ============================================================
@@ -1463,3 +1549,4 @@ async function sendTomorrowReminders() {
     showToast('reminder-toast', `Reminders failed — check the Twilio setup and Vercel environment variables.`, 't-r', 6000);
   }
 }
+

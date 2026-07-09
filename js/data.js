@@ -30,8 +30,10 @@ const DEMO_CODES = {
 };
 
 const RLO_CODES = {
-  'RLO-2025':   { name: 'Sarah Okafor',   role: 'RLO' },
-  'SONIA-2025': { name: 'Sonia Williams', role: 'Senior RLO' },
+  'RLO-2025':    { name: 'Adina Poncis',          role: 'RLO' },
+  'SONIA-2025':  { name: 'Sonia Carmichael',      role: 'Senior RLO' },
+  'DEE-2025':    { name: 'Dee Blake',             role: 'RLO' },
+  'ALANNAH-2025':{ name: 'Alannah Kelly-Forbes',  role: 'RLO' },
 };
 
 const DEMO_SCHEDULE = [
@@ -63,3 +65,4 @@ const FB_QUESTIONS = [
   'Tidiness — area left clean?','Communication quality',
   'Would you recommend Durkan?',
 ];
+
