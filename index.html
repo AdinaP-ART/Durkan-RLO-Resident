@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css"/>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 @keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
 </style>
@@ -543,23 +544,22 @@
   </div>
 </div>
 
+<script src="js/supabase-client.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script>
   if('serviceWorker' in navigator){
     window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
   }
-  // Auto-check for QR code in URL on page load
-  window.addEventListener('load', () => {
+  // Load the live schedule from the database first, THEN check for a QR code
+  // in the URL — this order matters so QR auto-login has real data to match against.
+  window.addEventListener('load', async () => {
+    await loadScheduleFromDB();
     const params = new URLSearchParams(window.location.search);
     if (params.get('code')) {
-      // Auto-select resident role and attempt login
       startAs('res');
     }
   });
 </script>
 </body>
 </html>
-
-
-
