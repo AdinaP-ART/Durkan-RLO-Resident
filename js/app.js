@@ -165,6 +165,7 @@ function bNav(i) {
   rloShowPage(rloPageMap[i] || 'bp-dashboard');
   buildRloNav(i);
   if (i === 1) renderDashboard();
+  if (i === 2) renderEntryTable();
   if (i === 3) { renderDuringWorksRlo(); document.getElementById('during-review-panel').style.display = duringWorksList.length ? 'block' : 'none'; }
   if (i === 4) renderRloDefects();
   if (i === 6) renderReports();
@@ -321,25 +322,34 @@ function handleFile(evt) {
 }
 
 function parseRows(rows, filename) {
-  const parsed = rows.map(r => ({
-    flat:      getCol(r,'Flat','FlatNo','Unit'),
-    resident:  getCol(r,'Resident','ResidentName','Name','Tenant'),
-    workType:  getCol(r,'WorkType','Work Type','Work','Type','Job'),
-    mobile:    getCol(r,'Mobile','MobileNumber','Mobile Number','Phone','Tel','Contact'),
-    slots:     [getCol(r,'Date1','Date 1'),getCol(r,'Date2','Date 2'),getCol(r,'Date3','Date 3')].filter(Boolean),
-    status:'pending', confirmedDate:'', locked:false, accessCode:'', contactLog:[],
-  })).filter(r => r.flat);
+  const parsed = rows.map(r => {
+    const flat = getCol(r,'Flat','FlatNo','Unit');
+    const existing = db.schedule.find(e => e.flat === flat);
+    return {
+      flat,
+      resident:  getCol(r,'Resident','ResidentName','Name','Tenant'),
+      workType:  getCol(r,'WorkType','Work Type','Work','Type','Job'),
+      mobile:    getCol(r,'Mobile','MobileNumber','Mobile Number','Phone','Tel','Contact'),
+      slots:     [getCol(r,'Date1','Date 1'),getCol(r,'Date2','Date 2'),getCol(r,'Date3','Date 3')].filter(Boolean),
+      status: existing ? existing.status : 'pending',
+      confirmedDate: existing ? existing.confirmedDate : '',
+      locked: existing ? existing.locked : false,
+      accessCode: existing ? existing.accessCode : '',
+      contactLog: existing ? (existing.contactLog||[]) : [],
+      id: existing ? existing.id : undefined,
+    };
+  }).filter(r => r.flat);
   if (!parsed.length) { showToast('parse-toast','No valid rows found. Check column headers.','t-r'); return; }
-  parsed.forEach(e => e.accessCode = genCode(e.flat));
+  parsed.forEach(e => { if (!e.accessCode) e.accessCode = genCode(e.flat); });
   db.schedule = parsed;
   renderEntryTable();
-  showToast('parse-toast',`✓ ${filename} — ${parsed.length} entries loaded.`,'t-g',5000);
+  showToast('parse-toast',`✓ ${filename} — ${parsed.length} entries loaded. Click Publish to save.`,'t-g',5000);
 }
 
 function loadDemo() {
   db.schedule = DEMO_SCHEDULE.map(e => ({...e}));
   renderEntryTable();
-  showToast('parse-toast','✓ Demo schedule loaded.','t-g');
+  showToast('parse-toast','✓ Demo schedule loaded. Click Publish to save.','t-g');
 }
 
 function renderEntryTable() {
@@ -356,16 +366,90 @@ function renderEntryTable() {
 }
 
 function addEntry() {
-  db.schedule.push({flat:'Flat',resident:'',workType:'Pre Works',accessCode:genCode('Flat'),slots:[],status:'pending',confirmedDate:'',locked:false});
+  db.schedule.push({flat:'Flat',resident:'',workType:'Pre Works',accessCode:genCode('Flat'),slots:[],status:'pending',confirmedDate:'',locked:false,contactLog:[]});
   renderEntryTable();
 }
 
-function publishSchedule() {
+async function publishSchedule() {
   if (!db.schedule.length) { showToast('publish-toast','Add at least one entry first.','t-r'); return; }
+  showToast('publish-toast','Saving to database...','t-j',8000);
+  await saveScheduleToDB();
   db.published = true;
-  showToast('publish-toast','✓ Published — residents can now log in and select dates.','t-g',5000);
+  await setPublishedInDB(true);
+  showToast('publish-toast','✓ Published and saved — residents can now log in and select dates.','t-g',5000);
   renderDashboard();
   if (db.currentResident) renderResidentHome();
+}
+
+/* ============================================================
+   DATABASE — Schedule & appointments (Supabase)
+============================================================ */
+function scheduleRowToLocal(r) {
+  return {
+    id: r.id,
+    flat: r.flat,
+    resident: r.resident,
+    workType: r.work_type,
+    mobile: r.mobile || '',
+    slots: r.slots || [],
+    status: r.status,
+    confirmedDate: r.confirmed_date || '',
+    locked: r.locked,
+    accessCode: r.access_code,
+    contactLog: [],
+  };
+}
+
+function scheduleRowToDb(e) {
+  return {
+    flat: e.flat,
+    resident: e.resident,
+    work_type: e.workType,
+    mobile: e.mobile || null,
+    slots: e.slots || [],
+    status: e.status,
+    confirmed_date: e.confirmedDate || null,
+    locked: !!e.locked,
+    access_code: e.accessCode,
+  };
+}
+
+async function loadScheduleFromDB() {
+  try {
+    const { data, error } = await sb.from('schedule').select('*').order('flat');
+    if (error) { console.warn('Load schedule failed:', error.message); return; }
+    if (data && data.length) {
+      db.schedule = data.map(scheduleRowToLocal);
+    }
+    const { data: state, error: stateErr } = await sb.from('project_state').select('published').eq('id', 1).single();
+    if (!stateErr && state) db.published = !!state.published;
+  } catch (err) {
+    console.warn('Could not reach database — using local data for this session.', err.message);
+  }
+}
+
+async function saveScheduleToDB() {
+  if (!db.schedule.length) return;
+  const rows = db.schedule.map(scheduleRowToDb);
+  const { data, error } = await sb.from('schedule').upsert(rows, { onConflict: 'access_code' }).select();
+  if (error) { console.warn('Save schedule failed:', error.message); showToast('publish-toast','Saved locally, but the database could not be reached.','t-r',6000); return; }
+  if (data) {
+    data.forEach(row => {
+      const e = db.schedule.find(x => x.accessCode === row.access_code);
+      if (e) e.id = row.id;
+    });
+  }
+}
+
+function updateScheduleRow(entry) {
+  if (!entry.id) { saveScheduleToDB(); return; }
+  sb.from('schedule').update(scheduleRowToDb(entry)).eq('id', entry.id)
+    .then(({ error }) => { if (error) console.warn('Update schedule row failed:', error.message); });
+}
+
+function setPublishedInDB(val) {
+  return sb.from('project_state').update({ published: val }).eq('id', 1)
+    .then(({ error }) => { if (error) console.warn('Set published failed:', error.message); });
 }
 
 /* ============================================================
@@ -631,6 +715,7 @@ function renderDashboard() {
 
 function unlockSlot(i) {
   db.schedule[i].locked=false; db.schedule[i].status='pending'; db.schedule[i].confirmedDate='';
+  updateScheduleRow(db.schedule[i]);
   renderDashboard();
   if (db.currentResident?.flat===db.schedule[i].flat) renderResAppts();
 }
@@ -638,6 +723,7 @@ function sendNewSlots(i) {
   db.schedule[i].status='pending';
   db.schedule[i].slots=['Mon 23 Jun','Tue 24 Jun','Wed 25 Jun'];
   if (!db.schedule[i].contactLog) db.schedule[i].contactLog = [];
+  updateScheduleRow(db.schedule[i]);
   renderDashboard();
   if (db.currentResident?.flat===db.schedule[i].flat) renderResAppts();
 }
@@ -896,9 +982,11 @@ function resConfirm(si) {
     e.status='none-requested';
     phToast(`rtost-${si}`,'New options requested. Your RLO will contact you within 48 hours.','err');
     pushNotification('appointment',`${e.flat} (${e.resident}) requested new appointment slots.`);
+    updateScheduleRow(e);
   } else {
     e.confirmedDate=p.label; e.status='confirmed'; e.locked=true;
     pushNotification('appointment',`${e.flat} (${e.resident}) confirmed their appointment: ${p.label}.`);
+    updateScheduleRow(e);
     // Send SMS confirmation to resident
     if (e.mobile) {
       sendSMS(e.mobile, `Hi ${e.resident.split(' ')[0]}, your Pre Works appointment at ${e.flat} Highbury Gardens is confirmed for ${p.label}. Your Durkan RLO will be in touch if anything changes.`);
@@ -1014,18 +1102,6 @@ function sendRMsg() {
   t.className='ph-toast'; t.textContent='Message sent. Your RLO will respond within 2 working days.';
   t.style.display='block'; document.getElementById('r-msg').value='';
   setTimeout(()=>t.style.display='none',3500);
-}
-
-function openMsg(i) {
-  const m=db.messages[i]; if(!m) return;
-  document.getElementById('bo-inbox-list').style.display='none';
-  document.getElementById('bo-inbox-detail').style.display='block';
-  document.getElementById('msg-from').textContent=m.from;
-  document.getElementById('msg-time').textContent=m.time;
-  document.getElementById('msg-body').textContent=m.body;
-  document.getElementById('esc-btn').style.display=m.complaint?'flex':'none';
-  document.getElementById('bo-reply').value='';
-  document.getElementById('reply-toast').style.display='none';
 }
 
 function renderInbox() {
@@ -1549,4 +1625,3 @@ async function sendTomorrowReminders() {
     showToast('reminder-toast', `Reminders failed — check the Twilio setup and Vercel environment variables.`, 't-r', 6000);
   }
 }
-
