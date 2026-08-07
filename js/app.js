@@ -201,10 +201,15 @@ function resLogin(auto = false) {
   }
 }
 
-function rloLogin() {
-  const raw   = (document.getElementById('rlo-code')?.value || '').trim().toUpperCase();
-  const err   = document.getElementById('rlo-err');
-  const match = RLO_CODES[raw];
+async function rloLogin() {
+  const raw = (document.getElementById('rlo-code')?.value || '').trim().toUpperCase();
+  const err = document.getElementById('rlo-err');
+  let match = null;
+  try {
+    const { data, error } = await sb.from('rlo_users').select('name, role').eq('passcode', raw).eq('active', true).maybeSingle();
+    if (!error && data) match = { name: data.name, role: data.role };
+  } catch (e) { console.warn('RLO login DB check failed, using local fallback:', e.message); }
+  if (!match) match = RLO_CODES[raw]; // fallback if database is unreachable
   if (match) {
     db.currentRLO = match;
     const chip = document.getElementById('rlo-chip');
@@ -420,12 +425,29 @@ async function loadScheduleFromDB() {
     if (error) { console.warn('Load schedule failed:', error.message); return; }
     if (data && data.length) {
       db.schedule = data.map(scheduleRowToLocal);
+      await loadContactLogsFromDB();
     }
     const { data: state, error: stateErr } = await sb.from('project_state').select('published').eq('id', 1).single();
     if (!stateErr && state) db.published = !!state.published;
   } catch (err) {
     console.warn('Could not reach database — using local data for this session.', err.message);
   }
+}
+
+async function loadContactLogsFromDB() {
+  const ids = db.schedule.map(e => e.id).filter(Boolean);
+  if (!ids.length) return;
+  const { data, error } = await sb.from('contact_log').select('*').in('schedule_id', ids).order('logged_at');
+  if (error) { console.warn('Load contact log failed:', error.message); return; }
+  db.schedule.forEach(e => { e.contactLog = []; });
+  (data || []).forEach(row => {
+    const e = db.schedule.find(x => x.id === row.schedule_id);
+    if (e) e.contactLog.push({
+      method: row.method, outcome: row.outcome, note: row.note || '',
+      date: new Date(row.logged_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'}),
+      time: new Date(row.logged_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+    });
+  });
 }
 
 async function saveScheduleToDB() {
@@ -1427,7 +1449,7 @@ function logContactAttempt(i) {
   document.body.appendChild(modal);
 }
 
-function saveContactAttempt(i) {
+async function saveContactAttempt(i) {
   const e = db.schedule[i];
   if (!e.contactLog) e.contactLog = [];
 
@@ -1441,6 +1463,15 @@ function saveContactAttempt(i) {
   e.contactLog.push({ method, outcome, note, date:dateStr, time:timeStr });
 
   document.getElementById('contact-log-modal').remove();
+
+  // Save to the database — make sure this flat has a database row first
+  if (!e.id) { await saveScheduleToDB(); }
+  if (e.id) {
+    sb.from('contact_log').insert({ schedule_id: e.id, method, outcome, note: note || null })
+      .then(({ error }) => { if (error) console.warn('Save contact attempt failed:', error.message); });
+  } else {
+    console.warn('Could not save contact attempt — schedule not yet published to the database.');
+  }
 
   // Auto-notify if threshold reached
   const attempts = e.contactLog.length;
