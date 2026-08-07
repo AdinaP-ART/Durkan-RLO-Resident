@@ -177,7 +177,7 @@ function bNav(i) {
 /* ============================================================
    LOGIN
 ============================================================ */
-function resLogin(auto = false) {
+async function resLogin(auto = false) {
   const raw = (document.getElementById('res-code')?.value || '').trim().toUpperCase();
   const err = document.getElementById('res-err');
   const inp = document.getElementById('res-code');
@@ -191,6 +191,7 @@ function resLogin(auto = false) {
     document.getElementById('r-appts-hdr').textContent = match.flat + ' · Highbury Gardens';
     const chip = document.getElementById('res-chip');
     chip.textContent = '🔒 ' + match.flat; chip.style.display = 'inline-block';
+    await loadReadUpdatesForResident();
     renderResidentHome();
     rNav(1);
     setTimeout(() => showResidentUpdatePopup(), 800);
@@ -1048,19 +1049,43 @@ function renderResDefects() {
   if(sub)sub.textContent=myDefs.length?`${open} open · ${myDefs.length} total`:'Report a problem in your home';
 }
 
-function submitDefect() {
+async function submitDefect() {
   const desc=document.getElementById('r-def-desc').value.trim();
   if(!desc){phToast('def-toast','Please describe the issue first.','err');return;}
-  const def={
-    id:'ISS-'+String(defectIdCounter++).padStart(3,'0'),
-    flat:db.currentResident.flat, resident:db.currentResident.resident,
-    desc, location:document.getElementById('r-def-location').value,
-    priority:document.getElementById('r-def-priority').value,
-    status:'open', date:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'}),
-    updates:[], photo:selectedPhoto?selectedPhoto.name:null, rating:null,
+
+  const location = document.getElementById('r-def-location').value;
+  const priority = document.getElementById('r-def-priority').value;
+  const photoName = selectedPhoto ? selectedPhoto.name : null;
+  const issueRef = 'ISS-' + String(defectIdCounter++).padStart(3, '0');
+
+  const { data, error } = await sb.from('issues').insert({
+    issue_ref: issueRef,
+    flat: db.currentResident.flat, resident: db.currentResident.resident,
+    location, description: desc, priority,
+    status: 'open', photo_url: photoName,
+  }).select().single();
+
+  if (error) {
+    console.warn('Submit issue failed:', error.message);
+    phToast('def-toast', 'Could not save — check your connection and try again.', 'err');
+    return;
+  }
+
+  const def = {
+    id: data.id, issue_ref: data.issue_ref,
+    flat: data.flat, resident: data.resident,
+    desc: data.description, location: data.location, priority: data.priority,
+    status: data.status, date: new Date(data.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'}),
+    updates: [], photo: data.photo_url, rating: data.rating,
   };
   db.defects.push(def);
   db.messages.push({from:`${def.resident} — ${def.flat}`,time:'Just now',body:`Issue reported: ${def.location} — ${def.desc}`,complaint:false,type:'issue'});
+  sb.from('messages').insert({
+    flat: def.flat, resident: def.resident,
+    from_label: `${def.resident} — ${def.flat}`,
+    body: `Issue reported: ${def.location} — ${def.desc}`,
+    is_complaint: false, type: 'issue',
+  }).then(({ error }) => { if (error) console.warn('Save message failed:', error.message); });
   pushNotification('issue',`${def.flat} (${def.resident}) reported a new issue: ${def.location} — ${def.desc.slice(0,50)}.`);
   selectedPhoto=null;
   document.getElementById('r-def-desc').value='';
@@ -1082,7 +1107,7 @@ function renderRloDefects() {
   list.innerHTML=db.defects.map(d=>`
     <div class="defect-card ${d.status}" style="margin-bottom:10px">
       <div class="def-row">
-        <div><div class="def-title">${d.id} — ${d.location} (${d.flat})</div>
+        <div><div class="def-title">${d.issue_ref || d.id} — ${d.location} (${d.flat})</div>
         <div class="def-meta">${d.resident} · ${d.date} · <strong>${d.priority.split(' ')[0]}</strong></div></div>
         <span class="spill ${d.status==='open'?'sp-r':d.status==='in-progress'?'sp-a':'sp-g'}">${d.status==='in-progress'?'In progress':d.status.charAt(0).toUpperCase()+d.status.slice(1)}</span>
       </div>
@@ -1100,17 +1125,52 @@ function renderRloDefects() {
 function updateDefectStatus(defId,status) {
   const d=db.defects.find(x=>x.id===defId); if(!d) return;
   d.status=status;
-  d.updates.push(`${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'})} — Status: ${status==='in-progress'?'in progress':status}`);
+  const note = `${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'})} — Status: ${status==='in-progress'?'in progress':status}`;
+  d.updates.push(note);
   renderRloDefects(); renderDashboard(); renderReports();
   if(db.currentResident?.flat===d.flat) renderResDefects();
+  sb.from('issues').update({ status }).eq('id', defId)
+    .then(({ error }) => { if (error) console.warn('Update issue status failed:', error.message); });
+  sb.from('issue_updates').insert({ issue_id: defId, note })
+    .then(({ error }) => { if (error) console.warn('Save issue update failed:', error.message); });
 }
 
 function addDefectUpdate(defId) {
   const note=prompt('Add an update (visible to resident):'); if(!note) return;
   const d=db.defects.find(x=>x.id===defId); if(!d) return;
-  d.updates.push(`${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'})} — ${note}`);
+  const entry = `${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'})} — ${note}`;
+  d.updates.push(entry);
   renderRloDefects();
   if(db.currentResident?.flat===d.flat) renderResDefects();
+  sb.from('issue_updates').insert({ issue_id: defId, note: entry })
+    .then(({ error }) => { if (error) console.warn('Save issue update failed:', error.message); });
+}
+
+async function loadIssuesFromDB() {
+  try {
+    const { data, error } = await sb.from('issues').select('*').order('created_at');
+    if (error) { console.warn('Load issues failed:', error.message); return; }
+    db.defects = (data || []).map(r => ({
+      id: r.id, issue_ref: r.issue_ref, flat: r.flat, resident: r.resident,
+      desc: r.description, location: r.location, priority: r.priority,
+      status: r.status, date: new Date(r.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'}),
+      updates: [], photo: r.photo_url, rating: r.rating,
+    }));
+    defectIdCounter = db.defects.length + 1;
+
+    const ids = db.defects.map(d => d.id);
+    if (ids.length) {
+      const { data: upd, error: uErr } = await sb.from('issue_updates').select('*').in('issue_id', ids).order('created_at');
+      if (!uErr && upd) {
+        upd.forEach(u => {
+          const d = db.defects.find(x => x.id === u.issue_id);
+          if (d) d.updates.push(u.note);
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Load issues error:', err.message);
+  }
 }
 
 /* ============================================================
@@ -1124,6 +1184,37 @@ function sendRMsg() {
   t.className='ph-toast'; t.textContent='Message sent. Your RLO will respond within 2 working days.';
   t.style.display='block'; document.getElementById('r-msg').value='';
   setTimeout(()=>t.style.display='none',3500);
+
+  sb.from('messages').insert({
+    flat: db.currentResident.flat, resident: db.currentResident.resident,
+    from_label: `${db.currentResident.resident} — ${db.currentResident.flat}`,
+    body: msg, is_complaint: false, type: 'message',
+  }).then(({ error }) => { if (error) console.warn('Save message failed:', error.message); });
+}
+
+async function loadMessagesFromDB() {
+  try {
+    const { data, error } = await sb.from('messages').select('*').order('created_at');
+    if (error) { console.warn('Load messages failed:', error.message); return; }
+    db.messages = (data || []).map(r => ({
+      from: r.from_label,
+      time: new Date(r.created_at).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}),
+      body: r.body, complaint: r.is_complaint, type: r.type,
+    }));
+  } catch (err) {
+    console.warn('Load messages error:', err.message);
+  }
+}
+
+async function loadFeedbackFromDB() {
+  try {
+    const { data, error } = await sb.from('feedback').select('*').order('created_at');
+    if (!error && data) {
+      db.feedback = data.map(r => ({ flat: r.flat, workType: r.work_type, rating: r.rating }));
+    }
+  } catch (err) {
+    console.warn('Load feedback error:', err.message);
+  }
 }
 
 function renderInbox() {
@@ -1202,7 +1293,12 @@ function handleSwatchUpload(evt) {
   files.forEach(file => {
     const reader = new FileReader();
     reader.onload = function(e) {
-      db.finishedWork.images.push(e.target.result);
+      const item = { id: undefined, url: e.target.result };
+      db.finishedWork.images.push(item);
+      sb.from('finished_work_photos').insert({ photo_url: item.url }).select().then(({ data, error }) => {
+        if (error) { console.warn('Save photo failed:', error.message); return; }
+        if (data && data[0]) item.id = data[0].id;
+      });
       loaded++;
       if (loaded === files.length) {
         db.finishedWork.uploadedDate = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
@@ -1217,7 +1313,12 @@ function handleSwatchUpload(evt) {
 }
 
 function removeFinishedPhoto(i) {
+  const item = db.finishedWork.images[i];
   db.finishedWork.images.splice(i, 1);
+  if (item && item.id) {
+    sb.from('finished_work_photos').delete().eq('id', item.id)
+      .then(({ error }) => { if (error) console.warn('Delete photo failed:', error.message); });
+  }
   renderColoursRlo();
   if (db.currentResident) renderColoursResident();
 }
@@ -1227,6 +1328,8 @@ function saveSwatchCaveat() {
   if (!txt) return;
   db.finishedWork.caveat = txt;
   showToast('swatch-toast', '✓ Caveat text updated.', 't-g', 3000);
+  sb.from('finished_work_settings').update({ caveat: txt }).eq('id', 1)
+    .then(({ error }) => { if (error) console.warn('Save caveat failed:', error.message); });
   renderColoursRlo();
   if (db.currentResident) renderColoursResident();
 }
@@ -1237,9 +1340,9 @@ function renderColoursRlo() {
   const gal = document.getElementById('swatch-gallery-rlo');
   if (gal) {
     gal.innerHTML = db.finishedWork.images.length
-      ? db.finishedWork.images.map((src, i) => `
+      ? db.finishedWork.images.map((img, i) => `
         <div style="position:relative;display:inline-block;margin:0 8px 8px 0">
-          <img src="${src}" style="width:140px;height:100px;object-fit:cover;border-radius:8px;border:1px solid var(--dg);display:block"/>
+          <img src="${img.url}" style="width:140px;height:100px;object-fit:cover;border-radius:8px;border:1px solid var(--dg);display:block"/>
           <button onclick="removeFinishedPhoto(${i})" style="position:absolute;top:4px;right:4px;background:rgba(163,45,45,.9);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;line-height:1">×</button>
         </div>`).join('')
       : '<div class="empty-msg">No photos uploaded yet.</div>';
@@ -1255,14 +1358,25 @@ function renderColoursResident() {
     return;
   }
   body.innerHTML = `
-    ${db.finishedWork.images.map(src => `
+    ${db.finishedWork.images.map(img => `
       <div class="vc" style="padding:0;overflow:hidden;margin-bottom:9px">
-        <img src="${src}" style="width:100%;display:block" onerror="this.style.display='none'"/>
+        <img src="${img.url}" style="width:100%;display:block" onerror="this.style.display='none'"/>
       </div>`).join('')}
     <div class="vc" style="padding:11px">
       <div style="font-size:12px;font-weight:700;color:var(--db);margin-bottom:5px">About these photos</div>
       <div style="font-size:11px;color:var(--dgd);line-height:1.5">${db.finishedWork.caveat}</div>
     </div>`;
+}
+
+async function loadFinishedWorkFromDB() {
+  try {
+    const { data, error } = await sb.from('finished_work_photos').select('*').order('uploaded_at');
+    if (!error && data) db.finishedWork.images = data.map(r => ({ id: r.id, url: r.photo_url }));
+    const { data: settings, error: sErr } = await sb.from('finished_work_settings').select('caveat').eq('id', 1).single();
+    if (!sErr && settings) db.finishedWork.caveat = settings.caveat;
+  } catch (err) {
+    console.warn('Load finished work failed:', err.message);
+  }
 }
 
 /* ============================================================
@@ -1293,20 +1407,25 @@ function renderUpdatePhotoPreview() {
     </div>`).join('');
 }
 
-function postUpdate() {
+async function postUpdate() {
   const title = document.getElementById('update-title').value.trim();
   const body  = document.getElementById('update-body').value.trim();
   const type  = document.getElementById('update-type').value;
   const date  = document.getElementById('update-date').value.trim();
   if (!title || !body) { showToast('update-toast', 'Please add a title and details.', 't-r'); return; }
 
-  db.updates.unshift({
-    id: 'UPD-' + String(updateIdCounter++).padStart(3, '0'),
-    title, body, type, date,
-    photos: [...stagedUpdatePhotos],
-    posted: new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short' }),
-    isNew: true,
-  });
+  const photos = [...stagedUpdatePhotos];
+  const { data, error } = await sb.from('updates').insert({
+    title, body, type, event_date: date || null, photos,
+  }).select().single();
+
+  if (error) {
+    console.warn('Post update failed:', error.message);
+    showToast('update-toast', 'Could not save to the database — check your connection.', 't-r', 5000);
+    return;
+  }
+
+  db.updates.unshift(updateRowToLocal(data, true));
   stagedUpdatePhotos = [];
   renderUpdatePhotoPreview();
 
@@ -1318,6 +1437,41 @@ function postUpdate() {
   renderUpdatesRlo();
   updateResidentUpdatesBadge();
   if (db.currentResident) { renderUpdatesResident(); }
+}
+
+function updateRowToLocal(row, isNew = false) {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    type: row.type,
+    date: row.event_date || '',
+    photos: row.photos || [],
+    posted: new Date(row.posted_at).toLocaleDateString('en-GB', { day:'numeric', month:'short' }),
+    isNew,
+  };
+}
+
+async function loadUpdatesFromDB() {
+  try {
+    const { data, error } = await sb.from('updates').select('*').order('posted_at', { ascending: false });
+    if (error) { console.warn('Load updates failed:', error.message); return; }
+    db.updates = (data || []).map(r => updateRowToLocal(r, false));
+  } catch (err) {
+    console.warn('Load updates error:', err.message);
+  }
+}
+
+async function loadReadUpdatesForResident() {
+  if (!db.currentResident) return;
+  try {
+    const { data, error } = await sb.from('update_reads').select('update_id').eq('flat', db.currentResident.flat);
+    if (error) { console.warn('Load read updates failed:', error.message); return; }
+    const readIds = new Set((data || []).map(r => r.update_id));
+    db.updates.forEach(u => { u.isNew = !readIds.has(u.id); });
+  } catch (err) {
+    console.warn('Load read updates error:', err.message);
+  }
 }
 
 // Count how many updates the current resident hasn't seen yet
@@ -1351,13 +1505,15 @@ function renderUpdatesRlo() {
     </div>`).join('');
 }
 
-function deleteUpdate(id) {
+async function deleteUpdate(id) {
   if (!confirm('Delete this post? It will be removed from the resident app too.')) return;
   db.updates = db.updates.filter(u => u.id !== id);
   renderUpdatesRlo();
   updateResidentUpdatesBadge();
   if (db.currentResident) renderUpdatesResident();
   showToast('update-toast', '✓ Post deleted.', 't-g', 3000);
+  const { error } = await sb.from('updates').delete().eq('id', id);
+  if (error) console.warn('Delete update failed:', error.message);
 }
 
 function renderUpdatesResident() {
@@ -1373,8 +1529,14 @@ function renderUpdatesResident() {
       ${u.photos&&u.photos.length?`<div style="display:flex;flex-direction:column;gap:6px;margin:6px 0">${u.photos.map(p=>`<img src="${p}" style="width:100%;border-radius:8px;display:block"/>`).join('')}</div>`:''}
       <div style="font-size:10px;color:var(--dg)">${u.date?u.date+' · ':''}Posted ${u.posted}</div>
     </div>`).join('');
-  // Mark all as read once viewed, clear badge
+  // Mark newly-seen updates as read, both locally and in the database
+  const newOnes = db.updates.filter(u => u.isNew);
   db.updates.forEach(u => u.isNew = false);
+  if (newOnes.length && db.currentResident) {
+    const rows = newOnes.map(u => ({ update_id: u.id, flat: db.currentResident.flat }));
+    sb.from('update_reads').upsert(rows, { onConflict: 'update_id,flat' })
+      .then(({ error }) => { if (error) console.warn('Mark update read failed:', error.message); });
+  }
   const badge = document.getElementById('r-updates-n');
   if (badge) badge.style.display = 'none';
   const sub = document.getElementById('r-updates-sub');
