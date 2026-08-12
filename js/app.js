@@ -19,7 +19,6 @@ function checkUrlCode() {
   const params = new URLSearchParams(window.location.search);
   const code   = params.get('code');
   if (code) {
-    // Pre-fill the resident login box and attempt login
     const inp = document.getElementById('res-code');
     if (inp) { inp.value = code.toUpperCase(); resLogin(true); }
   }
@@ -127,7 +126,7 @@ function rNav(i) {
 /* ============================================================
    RLO NAV
 ============================================================ */
-const rloPageMap = { 1:'bp-dashboard', 2:'bp-upload', 3:'bp-during', 4:'bp-defects', 5:'bp-messages', 6:'bp-reports', 7:'bp-letters', 8:'bp-colours', 9:'bp-updates' };
+const rloPageMap = { 1:'bp-dashboard', 2:'bp-upload', 3:'bp-during', 4:'bp-defects', 5:'bp-messages', 6:'bp-reports', 7:'bp-letters', 8:'bp-colours', 9:'bp-updates', 10:'bp-mandatory' };
 const rloNavDef  = [
   { i:1, icon:'ti-layout-dashboard', label:'Dashboard' },
   { i:2, icon:'ti-upload',           label:'Pre Works Schedule' },
@@ -137,6 +136,7 @@ const rloNavDef  = [
   { i:4, icon:'ti-alert-triangle',   label:'Issues' },
   { i:5, icon:'ti-mail',             label:'Messages' },
   { i:7, icon:'ti-mail-forward',     label:'Resident Letters' },
+  { i:10, icon:'ti-file-text',       label:'Mandatory Letters' },
   { i:6, icon:'ti-chart-bar',        label:'Reports' },
 ];
 let curRloPage = 0;
@@ -145,7 +145,6 @@ function buildRloNav(cur) {
   document.getElementById('rlo-nav').innerHTML = rloNavDef.map(n =>
     `<button class="si${n.i===cur?' on':''}" onclick="bNav(${n.i})"><i class="ti ${n.icon}"></i>${n.label}</button>`
   ).join('');
-  // Keep mobile dropdown in sync and only show it when logged in
   const mob = document.getElementById('rlo-mobile-nav');
   if (mob) {
     mob.value = cur || 1;
@@ -172,6 +171,7 @@ function bNav(i) {
   if (i === 7) renderLettersPage();
   if (i === 8) renderColoursRlo();
   if (i === 9) renderUpdatesRlo();
+  if (i === 10) renderMandatoryLettersPage();
 }
 
 /* ============================================================
@@ -210,14 +210,13 @@ async function rloLogin() {
     const { data, error } = await sb.from('rlo_users').select('name, role').eq('passcode', raw).eq('active', true).maybeSingle();
     if (!error && data) match = { name: data.name, role: data.role };
   } catch (e) { console.warn('RLO login DB check failed, using local fallback:', e.message); }
-  if (!match) match = RLO_CODES[raw]; // fallback if database is unreachable
+  if (!match) match = RLO_CODES[raw];
   if (match) {
     db.currentRLO = match;
     const chip = document.getElementById('rlo-chip');
     chip.textContent = '👤 ' + match.name + ' · ' + match.role;
     chip.style.display = 'inline-block';
     bNav(1);
-    // Show any queued notifications
     setTimeout(() => showPendingNotifications(), 500);
   } else {
     if (err) { err.style.display = 'block'; setTimeout(() => err.style.display='none', 3000); }
@@ -229,7 +228,6 @@ async function rloLogin() {
 ============================================================ */
 function pushNotification(type, message) {
   db.notifications.push({ type, message, time: new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }), read: false });
-  // If RLO is logged in, show immediately
   if (db.currentRLO) showPendingNotifications();
   updateNotifBadge();
 }
@@ -245,7 +243,6 @@ function showPendingNotifications() {
 }
 
 function showRloPopup(type, message, time) {
-  // Remove any existing popup
   document.getElementById('rlo-notif-popup')?.remove();
   const icons = { appointment:'ti-calendar-check', issue:'ti-alert-triangle', message:'ti-message' };
   const colors = { appointment:'var(--green)', issue:'var(--red)', message:'var(--amber)' };
@@ -504,7 +501,6 @@ function renderLettersPage() {
         </table>
       </div>
     </div>`;
-  // Generate QR URLs and render table immediately
   const qrUrls = generateQrDataUrls(db.schedule);
   const tbody = document.getElementById('letters-tbody');
   if (tbody) {
@@ -524,7 +520,6 @@ function buildQrUrl(code) {
 }
 
 function buildQrImageUrl(code) {
-  // quickchart.io — reliable QR code image, no library needed
   const data = encodeURIComponent(buildQrUrl(code));
   return `https://quickchart.io/qr?text=${data}&size=150&dark=002856&light=ffffff&margin=1`;
 }
@@ -586,7 +581,6 @@ function buildLetterBody(e, qrUrl) {
   const today = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
   return `
   <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:40px;font-size:13px;color:#222;line-height:1.6">
-    <!-- Letterhead -->
     <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #008C79;padding-bottom:16px;margin-bottom:20px">
       <div>
         <span style="font-size:26px;font-weight:700;color:#002856;font-family:Arial,sans-serif">DURKAN</span>
@@ -600,7 +594,6 @@ function buildLetterBody(e, qrUrl) {
       </div>
     </div>
 
-    <!-- Recipient -->
     <div style="margin-bottom:20px;font-size:13px">
       <strong>${e.resident}</strong><br>
       ${e.flat}<br>
@@ -617,7 +610,6 @@ function buildLetterBody(e, qrUrl) {
 
     <p>As part of our commitment to keeping you informed throughout the works, we have set up a <strong>Resident App</strong> — your personal digital link to the Durkan team. The app lets you confirm your appointment dates, see what work is happening at your home each day, report any issues, and message your Resident Liaison Officer directly from your phone.</p>
 
-    <!-- QR + Access code box -->
     <div style="border:2px solid #008C79;border-radius:10px;padding:20px;margin:20px 0;background:#e0f2ef">
       <div style="font-size:13px;font-weight:700;color:#002856;margin-bottom:12px">Your personal access to the resident app</div>
       <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
@@ -696,6 +688,9 @@ function renderDashboard() {
     const escalateBtn = attempts >= 3 && e.status !== 'confirmed'
       ? `<button class="btn btn-sm" style="background:var(--redbg);color:var(--red);border:1px solid var(--red);border-radius:7px;font-weight:600;cursor:pointer;margin-top:4px;width:100%" onclick="escalateResident(${i})">⚠ Escalate to L&Q</button>`
       : '';
+    const accessLetterBtn = attempts >= 1 && e.status !== 'confirmed'
+      ? `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openAccessLetterFor(${i})"><i class="ti ti-file-text"></i> Send access letter</button>`
+      : '';
     return `<tr style="${rowBg}">
       <td><strong>${e.flat}</strong></td><td>${e.resident}</td><td>${e.workType}</td>
       <td><span class="code-chip">${e.accessCode}</span></td>
@@ -712,13 +707,13 @@ function renderDashboard() {
                 : `<span style="color:var(--dj);font-size:11px;font-weight:600">✓ Done</span>`
           }
           ${attemptBadge}
+          ${accessLetterBtn}
           ${escalateBtn}
           ${attempts > 0 ? `<button class="btn btn-o btn-sm" style="font-size:10px" onclick="viewContactLog(${i})">View log</button>` : ''}
         </div>
       </td>
     </tr>`;
   }).join('');
-  // Defects panel
   const defPanel = document.getElementById('def-dash-panel');
   if (!openDef) { defPanel.style.display='none'; }
   else {
@@ -837,7 +832,6 @@ function publishDuring() {
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   const dateStr  = tomorrow.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
   db.duringWorks = duringWorksList.map(e => ({...e, publishedAt:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}));
-  // Send SMS to each resident with mobile number about tomorrow's works
   db.duringWorks.forEach(e => {
     const sched = db.schedule.find(s => s.flat === e.flat);
     const mobile = e.mobile || (sched && sched.mobile);
@@ -1010,7 +1004,6 @@ function resConfirm(si) {
     e.confirmedDate=p.label; e.status='confirmed'; e.locked=true;
     pushNotification('appointment',`${e.flat} (${e.resident}) confirmed their appointment: ${p.label}.`);
     updateScheduleRow(e);
-    // Send SMS confirmation to resident
     if (e.mobile) {
       sendSMS(e.mobile, `Hi ${e.resident.split(' ')[0]}, your Pre Works appointment at ${e.flat} Highbury Gardens is confirmed for ${p.label}. Your Durkan RLO will be in touch if anything changes.`);
     }
@@ -1230,7 +1223,6 @@ function renderInbox() {
       <div class="ic-row"><span class="ic-name">${m.from}</span><span class="spill ${m.type==='issue'?'sp-r':m.complaint?'sp-r':'sp-b'}">${m.type==='issue'?'Issue':m.complaint?'Complaint':'NEW'}</span></div>
       <div class="ic-msg">${m.body.slice(0,80)}</div>
     </div>`).join('');
-  // Patch openMsg to cover base messages too
   window._allMessages = all;
 }
 
@@ -1474,7 +1466,6 @@ async function loadReadUpdatesForResident() {
   }
 }
 
-// Count how many updates the current resident hasn't seen yet
 function updateResidentUpdatesBadge() {
   const badge = document.getElementById('r-updates-n');
   const sub   = document.getElementById('r-updates-sub');
@@ -1529,7 +1520,6 @@ function renderUpdatesResident() {
       ${u.photos&&u.photos.length?`<div style="display:flex;flex-direction:column;gap:6px;margin:6px 0">${u.photos.map(p=>`<img src="${p}" style="width:100%;border-radius:8px;display:block"/>`).join('')}</div>`:''}
       <div style="font-size:10px;color:var(--dg)">${u.date?u.date+' · ':''}Posted ${u.posted}</div>
     </div>`).join('');
-  // Mark newly-seen updates as read, both locally and in the database
   const newOnes = db.updates.filter(u => u.isNew);
   db.updates.forEach(u => u.isNew = false);
   if (newOnes.length && db.currentResident) {
@@ -1547,7 +1537,6 @@ function flagUpdatesBadge() {
   updateResidentUpdatesBadge();
 }
 
-// Resident pop-up when logging in and there are new updates
 function showResidentUpdatePopup() {
   if (!db.currentResident) return;
   const newCount = db.updates.filter(u => u.isNew).length;
@@ -1578,7 +1567,6 @@ function logContactAttempt(i) {
   const e = db.schedule[i];
   if (!e.contactLog) e.contactLog = [];
 
-  // Build a modal-style popup
   const existing = document.getElementById('contact-log-modal');
   if (existing) existing.remove();
 
@@ -1626,7 +1614,6 @@ async function saveContactAttempt(i) {
 
   document.getElementById('contact-log-modal').remove();
 
-  // Save to the database — make sure this flat has a database row first
   if (!e.id) { await saveScheduleToDB(); }
   if (e.id) {
     sb.from('contact_log').insert({ schedule_id: e.id, method, outcome, note: note || null })
@@ -1635,7 +1622,6 @@ async function saveContactAttempt(i) {
     console.warn('Could not save contact attempt — schedule not yet published to the database.');
   }
 
-  // Auto-notify if threshold reached
   const attempts = e.contactLog.length;
   if (attempts === 3) {
     pushNotification('message', `⚠ ${e.flat} (${e.resident}) has had 3 contact attempts with no response. Consider escalating.`);
@@ -1691,7 +1677,6 @@ function escalateResident(i) {
   const log = e.contactLog || [];
   const summary = log.map((l,idx) => `Attempt ${idx+1}: ${l.date} ${l.time} — ${l.method} — ${l.outcome}${l.note?' ('+l.note+')':''}`).join('\n');
 
-  // In production this would send an email/SMS to L&Q — for now opens a pre-filled email
   const subject = encodeURIComponent(`Resident non-response — ${e.flat}, Highbury Gardens`);
   const body = encodeURIComponent(
     `Dear L&Q,\n\nWe have been unable to contact the resident at ${e.flat}, Highbury Gardens (${e.resident}) after ${log.length} attempts.\n\nContact history:\n${summary}\n\nCould you please assist with making contact to arrange the required works appointment.\n\nKind regards,\nDurkan Regen RLO Team`
@@ -1704,7 +1689,6 @@ function exportContactLog(i) {
   const log = e.contactLog || [];
   if (!log.length) return;
 
-  // Build a simple CSV
   const rows = [
     ['Flat','Resident','Attempt','Date','Time','Method','Outcome','Note'],
     ...log.map((l,idx) => [e.flat, e.resident, idx+1, l.date, l.time, l.method, l.outcome, l.note||''])
@@ -1748,13 +1732,11 @@ async function sendTomorrowReminders() {
     return;
   }
 
-  // Build tomorrow's date string in the same format slots use: e.g. "Tue 8 Jul"
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
   const tomorrowLong = tomorrow.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
 
-  // Find confirmed appointments for tomorrow (match on the date portion, flexible)
   const matches = db.schedule.filter(e =>
     e.status === 'confirmed' &&
     e.confirmedDate &&
@@ -1789,7 +1771,6 @@ async function sendTomorrowReminders() {
     }
   }
 
-  // Show summary
   const summaryEl = document.getElementById('reminder-summary');
   if (summaryEl) {
     summaryEl.style.display = 'block';
@@ -1817,4 +1798,259 @@ async function sendTomorrowReminders() {
   } else {
     showToast('reminder-toast', `Reminders failed — check the Twilio setup and Vercel environment variables.`, 't-r', 6000);
   }
+}
+/* ============================================================
+   MANDATORY LETTERS — client-required standard letters
+   (Access Request, Survey Confirmation, Start Date Confirmation,
+   Window & Door, Front Entrance Door)
+============================================================ */
+
+function renderMandatoryLettersPage() {
+  const wrap = document.getElementById('mandatory-letters-wrap');
+  if (!wrap) return;
+
+  const catOptions = Object.keys(MANDATORY_LETTERS).map(k =>
+    `<option value="${k}">${MANDATORY_LETTERS[k].label}</option>`).join('');
+
+  const residentOptions = db.schedule.map((e, i) =>
+    `<option value="${i}">${e.flat} — ${e.resident}</option>`).join('');
+
+  wrap.innerHTML = `
+    <div class="panel">
+      <div class="panel-t">Generate a mandatory letter</div>
+      <p style="font-size:12px;color:var(--dgd);margin-bottom:14px">These are the standard letters required by L&amp;Q for the resident file. Choose a category, then the specific letter, fill in the details, and generate a print-ready copy.</p>
+
+      <label class="flbl">Letter category</label>
+      <select class="field" id="ml-category" onchange="updateLetterVariants()">
+        <option value="">Select a category...</option>
+        ${catOptions}
+      </select>
+
+      <label class="flbl">Specific letter</label>
+      <select class="field" id="ml-variant" onchange="updateLetterStageVisibility()">
+        <option value="">Select a category first...</option>
+      </select>
+
+      <div id="ml-stage-wrap" style="display:none">
+        <label class="flbl">Request stage</label>
+        <select class="field" id="ml-stage">
+          <option value="1st">1st Request</option>
+          <option value="2nd">2nd Request</option>
+          <option value="3rd">3rd Request</option>
+        </select>
+      </div>
+
+      <label class="flbl">Resident / flat</label>
+      <select class="field" id="ml-resident">
+        <option value="">Select a flat...</option>
+        ${residentOptions}
+      </select>
+      ${!db.schedule.length ? '<div style="font-size:11px;color:var(--dgd);margin-top:-6px;margin-bottom:8px">No flats loaded yet — upload a schedule first, or generate this letter with resident details left blank to fill in by hand.</div>' : ''}
+
+      <label class="flbl">Commencement / appointment date</label>
+      <input class="field" id="ml-date" placeholder="e.g. 14 August 2026"/>
+
+      <button class="btn btn-j" onclick="generateMandatoryLetter()"><i class="ti ti-file-text"></i> Generate letter</button>
+      <div class="toast" id="ml-toast" style="display:none"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-t">About these letters</div>
+      <p style="font-size:12px;color:var(--dgd);line-height:1.6">Each letter opens in a new tab, ready to review, edit the highlighted fields, and print. The required Hi-Vis/photo ID safety notice and standard apology closing are included automatically on every letter, matching Durkan's approved wording.</p>
+    </div>`;
+}
+
+function updateLetterVariants() {
+  const catKey = document.getElementById('ml-category').value;
+  const variantSelect = document.getElementById('ml-variant');
+  if (!catKey) {
+    variantSelect.innerHTML = '<option value="">Select a category first...</option>';
+    document.getElementById('ml-stage-wrap').style.display = 'none';
+    return;
+  }
+  const cat = MANDATORY_LETTERS[catKey];
+  variantSelect.innerHTML = Object.keys(cat.variants).map(vk =>
+    `<option value="${vk}">${cat.variants[vk].label}</option>`).join('');
+  document.getElementById('ml-stage-wrap').style.display = cat.hasStage ? 'block' : 'none';
+}
+
+function updateLetterStageVisibility() {
+  // placeholder hook — stage visibility is controlled by category, kept for future per-variant overrides
+}
+
+function generateMandatoryLetter() {
+  const catKey = document.getElementById('ml-category').value;
+  const varKey = document.getElementById('ml-variant').value;
+  const toast = 'ml-toast';
+  if (!catKey || !varKey) { showToast(toast, 'Please select a category and letter.', 't-r'); return; }
+
+  const cat = MANDATORY_LETTERS[catKey];
+  const variant = cat.variants[varKey];
+  const stage = cat.hasStage ? document.getElementById('ml-stage').value : null;
+  const dateVal = document.getElementById('ml-date').value.trim() || '[date]';
+
+  const resIdx = document.getElementById('ml-resident').value;
+  let resident;
+  if (resIdx !== '') {
+    const e = db.schedule[Number(resIdx)];
+    resident = { name: e.resident, flat: e.flat, address: 'Highbury Gardens' };
+  } else {
+    resident = { name: 'Resident', flat: '[Flat]', address: 'Highbury Gardens' };
+  }
+
+  const html = buildMandatoryLetterHTML(catKey, cat, varKey, variant, stage, resident, dateVal);
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  showToast(toast, '✓ Letter opened in a new tab — review and print.', 't-g', 4000);
+}
+
+function buildMandatoryLetterHTML(catKey, cat, varKey, variant, stage, resident, dateVal) {
+  const t = LETTER_TEMPLATE;
+  const today = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const title = variant.title || variant.subject || '';
+  const body = buildMandatoryLetterBody(catKey, cat, varKey, variant, stage, dateVal);
+  const signOff = cat.signOff;
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${title}</title>${letterStyles()}</head><body>
+    <div class="edit-hint">
+      ✏️ Fields underlined with dashes are editable. Everything else is fixed wording.
+      <button onclick="window.print()">🖨 Print letter</button>
+    </div>
+    <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:40px;font-size:13px;color:#222;line-height:1.6">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #008C79;padding-bottom:16px;margin-bottom:20px">
+        <div>
+          <span style="font-size:26px;font-weight:700;color:#002856">DURKAN</span>
+          <span style="font-size:18px;font-weight:700;color:#008C79"> regen</span>
+          <div style="font-size:11px;color:#888;margin-top:4px">${t.siteOffice}<br>${t.siteAddr}</div>
+        </div>
+        <div style="text-align:right;font-size:11px;color:#888">
+          <div>Our Ref: <span contenteditable="true" style="border-bottom:2px dashed #008C79">${t.ref}RD034</span></div>
+          <div style="margin-top:4px" contenteditable="true">${today}</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:20px;font-size:13px">
+        <strong contenteditable="true" style="border-bottom:2px dashed #008C79">${resident.name}</strong><br>
+        <span contenteditable="true" style="border-bottom:2px dashed #008C79">${resident.flat}</span><br>
+        ${resident.address}
+      </div>
+
+      ${cat.hasStage ? `<div style="margin-bottom:10px;font-weight:700">${stage} Request to Contact for Survey</div>` : ''}
+
+      <div style="margin-bottom:16px"><strong>Dear ${resident.name.split(' ')[0] === 'Resident' ? 'Resident' : resident.name},</strong></div>
+
+      <div style="font-size:14px;font-weight:700;color:#002856;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">${title}</div>
+
+      ${body}
+
+      <p>All Durkan employees wear Hi-Vis vests and carry photo ID. If you are unsure of anyone claiming to represent Durkan Limited or its subcontractors, please contact our liaison officer${cat.contactName2 ? 's' : ''} <strong contenteditable="true" style="border-bottom:2px dashed #008C79">${cat.contactName} ${cat.contactPhone}</strong>${cat.contactName2 ? ` or <strong contenteditable="true" style="border-bottom:2px dashed #008C79">${cat.contactName2} ${cat.contactPhone2}</strong>` : ''} prior to allowing access to your home.</p>
+
+      <p>We would like to apologise for any inconvenience this may cause you and would like to take this opportunity to thank you in advance for your co-operation and patience.</p>
+
+      <div style="margin-top:28px">
+        <div>Yours ${signOff.role ? 'sincerely' : 'faithfully'},</div>
+        <div style="margin-top:28px">
+          <div style="font-weight:700;color:#002856">${signOff.name}</div>
+          ${signOff.role ? `<div>${signOff.role}</div>` : ''}
+          ${signOff.email ? `<div><a href="mailto:${signOff.email}">${signOff.email}</a></div>` : ''}
+          ${signOff.cc ? `<div style="margin-top:8px">Cc: L&amp;Q</div>` : ''}
+        </div>
+      </div>
+    </div>
+  </body></html>`;
+}
+
+function letterDetailRow(label, value) {
+  return `<div style="display:flex;padding:3px 0"><span style="min-width:190px;color:#555">${label}</span><strong contenteditable="true" style="border-bottom:2px dashed #008C79">${value}</strong></div>`;
+}
+
+function buildMandatoryLetterBody(catKey, cat, varKey, variant, stage, dateVal) {
+  if (catKey === 'access') {
+    if (varKey === 'kitchen') {
+      return `
+        <p>Durkan Limited has been appointed by L&amp;Q to carry out internal refurbishment works to your home.</p>
+        <p>We have tried to contact you to rebook your kitchen survey. Can we please ask if you can call ${cat.contactName} our Resident Liaison Officer direct to book the appointment ${cat.contactPhone}.</p>
+        <p>Before we can start installing your new kitchen, we need to carry out a kitchen design survey, which will take approximately ${variant.duration}.</p>
+        <p>Our kitchen designer is on site Monday to Friday, 9am to 3pm, please call our liaison officer to arrange a convenient appointment on receipt of this letter.</p>
+        <p>Our kitchen designer will ask you what appliances you have and if you intend to change any of them, he/she will design your new kitchen taking the appliances into consideration. Our Liaison Officer will also visit at the same time to discuss and show you the colour choices available to you (if you have not already chosen them).</p>
+        <p>The designer will show you the kitchen plan and ask you to sign it to say that you have seen and understand the design and he will leave a copy with you.</p>`;
+    }
+    return `
+      <p>Durkan Limited has been appointed by L&amp;Q to carry out internal refurbishment works to your home.</p>
+      <p>Before we can start installing your new bathroom, we need to carry out a design survey, which will take approximately ${variant.duration}.</p>
+      <p>We have appointments available Monday to Friday, 9am to 2pm, please contact our liaison officer to arrange a mutually convenient appointment on receipt of this letter.</p>`;
+  }
+
+  if (catKey === 'survey') {
+    const kitchenBit = variant.kitchenExtras ? `
+        <p>Our kitchen designer will ask you what appliances you have and if you intend to change any of them, he / she will design your new kitchen taking the appliances into consideration.</p>
+        <p>Our Liaison Officer ${cat.contactName} or ${cat.contactName2} will also visit at the same time to discuss and show you the colour choices available to you, please ensure the decision maker is at home during the survey.</p>
+        <p>The designer will show you the kitchen plan and will ask you to sign it to say that you have seen and understand the design and he / she will leave a copy with you.</p>`
+      : `<p>${cat.contactName} or ${cat.contactName2} will visit to discuss colour choices with you.</p>`;
+    return `
+      <p>Durkan Limited has been appointed by L&amp;Q to carry out internal refurbishment works to your home.</p>
+      <p>We are writing to you to confirm your ${variant.workType.toLowerCase()} appointment, which will take approximately ${variant.duration}.</p>
+      <div style="margin:14px 0">
+        ${letterDetailRow('Type of Works:', variant.workType)}
+        ${letterDetailRow('Commencement Date:', dateVal)}
+        ${letterDetailRow('Hours of work:', '9am to 2pm')}
+      </div>
+      ${kitchenBit}
+      <p>We would like to remind you that an asbestos test will also be carried out. This test is essential, and without it the planned works cannot proceed. Global Environmental will visit during the day to carry out the test. Please note they may not attend at the same time as our kitchen team.</p>`;
+  }
+
+  if (catKey === 'startdate') {
+    const kitchenBit = variant.kitchenExtras ? `
+        <p>Prior to your appointment, we would ask you to remove all curtains, blinds, and personal fittings, ensure if you are having a bathroom renewal and wish to retain your own toilet seat, curtain rail/shower screen, toilet roll holder, towel rail etc. are removed, please ensure all kitchen cupboards are emptied ahead of time. We will not be responsible for any items disposed of accidentally. Failure to remove all items prior to your appointment could result in your works not starting.</p>
+        <p>We will aim to keep your existing cooker in situ during these works. All appliances must be temporarily positioned in other rooms of your home until the works are completed, either moved by yourself or, if you require Durkan to move the appliances, a disclaimer will need to be signed stating any damage caused. Durkan cannot be responsible for this, although we do have duty of care. You will have use of a sink with hot and cold running water every evening; your washing machine will be reconnected on a Friday for use over the weekend.</p>`
+      : `
+        <p>Prior to your appointment, we would ask you to remove all curtains, blinds, and personal fittings, and ensure your own toilet seat, curtain rail/shower screen, toilet roll holder, towel rail etc. are removed. We will not be responsible for any items disposed of accidentally. Failure to remove all items prior to your appointment could result in your works not starting.</p>
+        <p>You will have use of the sink with hot and cold running water, as well as constant access to your toilet; the shower head will be fitted at the end of the works.</p>`;
+    return `
+      <p>We write to advise you that the installation of your ${variant.workType} will commence as follows:</p>
+      <div style="margin:14px 0">
+        ${letterDetailRow('Type of Works:', variant.workType)}
+        ${letterDetailRow('Commencement Date:', dateVal)}
+        ${letterDetailRow('Anticipated Completion Date:', variant.completion)}
+        ${letterDetailRow('Hours of Work:', '8.00am – 5.00pm')}
+      </div>
+      <p>As noted on the dates above we would anticipate the whole works will be complete in approximately ${variant.completion}, we will require continuous access into your home to enable this to be achieved. If we do not require access into your home on a certain day we will inform you in advance, where possible.</p>
+      ${kitchenBit}`;
+  }
+
+  if (catKey === 'windowdoor') {
+    return `
+      <p>As discussed, we write to advise we will be carrying out your window installation as follows:</p>
+      <div style="margin:14px 0">${letterDetailRow('Commencement Date:', dateVal)}</div>
+      <p>We will require access into your home to fit your new windows, a set of keys will be handed to you on the day, and you will be shown how your new windows work.</p>
+      <p>You are required to remove curtains, clear window cills and move furniture one meter away from each of the windows prior to the works starting. If you are not able to do so, please contact your RLO who will arrange assistance to carry this out for you.</p>`;
+  }
+
+  if (catKey === 'fed') {
+    return `
+      <p>We are writing to advise you that we will be fitting your new front entrance door as follows:</p>
+      <div style="margin:14px 0">${letterDetailRow('Commencement Date:', dateVal)}</div>
+      <p>We will require access into your home to fit your new door, a set of keys will be handed to you on the day, and you will be shown how your new door works.</p>`;
+  }
+
+  return '';
+}
+
+/* ---- Dashboard shortcut: suggest an Access Request letter for
+   non-confirmed flats, with the right stage pre-selected ---- */
+function openAccessLetterFor(i) {
+  const e = db.schedule[i];
+  bNav(10);
+  setTimeout(() => {
+    document.getElementById('ml-category').value = 'access';
+    updateLetterVariants();
+    const guessKitchen = /kitchen/i.test(e.workType) && !/bath/i.test(e.workType);
+    document.getElementById('ml-variant').value = guessKitchen ? 'kitchen' : 'bathroom';
+    const attempts = (e.contactLog || []).length;
+    document.getElementById('ml-stage').value = attempts >= 3 ? '3rd' : attempts === 2 ? '2nd' : '1st';
+    const residentSelect = document.getElementById('ml-resident');
+    const idx = db.schedule.indexOf(e);
+    residentSelect.value = String(idx);
+    showToast('ml-toast', 'Details pre-filled from the contact log — check and generate.', 't-j', 5000);
+  }, 100);
 }
