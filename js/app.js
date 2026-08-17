@@ -424,6 +424,7 @@ async function loadScheduleFromDB() {
     if (data && data.length) {
       db.schedule = data.map(scheduleRowToLocal);
       await loadContactLogsFromDB();
+      await loadWorkElementsFromDB();
     }
     const { data: state, error: stateErr } = await sb.from('project_state').select('published').eq('id', 1).single();
     if (!stateErr && state) db.published = !!state.published;
@@ -446,6 +447,38 @@ async function loadContactLogsFromDB() {
       time: new Date(row.logged_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
     });
   });
+}
+
+async function loadWorkElementsFromDB() {
+  const ids = db.schedule.map(e => e.id).filter(Boolean);
+  db.schedule.forEach(e => { e.workElements = []; });
+  if (!ids.length) return;
+  try {
+    const { data, error } = await sb.from('work_elements').select('*').in('schedule_id', ids).order('created_at');
+    if (error) { console.warn('Load work elements failed:', error.message); return; }
+    (data || []).forEach(row => {
+      const e = db.schedule.find(x => x.id === row.schedule_id);
+      if (e) e.workElements.push(workElementRowToLocal(row));
+    });
+  } catch (err) {
+    console.warn('Load work elements error:', err.message);
+  }
+}
+
+function workElementRowToLocal(r) {
+  return {
+    id: r.id, name: r.name, status: r.status || 'Not started',
+    introLetterSent: r.intro_letter_sent || '', surveyBooked: r.survey_booked || '',
+    surveyCompleted: r.survey_completed || '', startDate: r.start_date || '',
+  };
+}
+
+function workElementLocalToRow(scheduleId, el) {
+  return {
+    schedule_id: scheduleId, name: el.name, status: el.status,
+    intro_letter_sent: el.introLetterSent || null, survey_booked: el.surveyBooked || null,
+    survey_completed: el.surveyCompleted || null, start_date: el.startDate || null,
+  };
 }
 
 async function saveScheduleToDB() {
@@ -655,6 +688,26 @@ function buildLetterBody(e, qrUrl) {
 /* ============================================================
    DASHBOARD
 ============================================================ */
+const LETTER_CATEGORY_SHORT = {
+  'Request to Access Letters (hard-to-reach residents)': 'Access',
+  'Design Survey Confirmation': 'Survey',
+  'Start Date of Works Confirmation': 'Start Date',
+  'Window & Door Installation Confirmation': 'Window/Door',
+  'Front Entrance Door Installation Confirmation': 'FED',
+};
+
+function letterBadgesFor(contactLog) {
+  const letters = (contactLog || []).filter(l => l.method === 'Letter');
+  if (!letters.length) return '';
+  return letters.map(l => {
+    const catLabel = Object.keys(LETTER_CATEGORY_SHORT).find(full => (l.note || '').startsWith(full));
+    const short = catLabel ? LETTER_CATEGORY_SHORT[catLabel] : 'Letter';
+    const stageMatch = (l.note || '').match(/\((\d\w\w) Request\)/);
+    const stage = stageMatch ? ' ' + stageMatch[1] : '';
+    return `<span class="spill sp-b" style="font-size:9px;margin:1px 2px 1px 0" title="${l.note} — ${l.date}">${short}${stage}</span>`;
+  }).join('');
+}
+
 function renderDashboard() {
   const total  = db.schedule.length;
   const conf   = db.schedule.filter(e => e.status==='confirmed').length;
@@ -691,8 +744,10 @@ function renderDashboard() {
     const accessLetterBtn = attempts >= 1 && e.status !== 'confirmed'
       ? `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openAccessLetterFor(${i})"><i class="ti ti-file-text"></i> Send access letter</button>`
       : '';
+    const elCount = (e.workElements||[]).length;
+    const workElBtn = `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openWorkElements(${i})"><i class="ti ti-list-check"></i> Work elements${elCount?' ('+elCount+')':''}</button>`;
     return `<tr style="${rowBg}">
-      <td><strong>${e.flat}</strong></td><td>${e.resident}</td><td>${e.workType}</td>
+      <td><strong>${e.flat}</strong></td><td>${e.resident}<div style="margin-top:3px">${letterBadgesFor(e.contactLog)}</div></td><td>${e.workType}</td>
       <td><span class="code-chip">${e.accessCode}</span></td>
       <td>${sPill[e.status]||''}</td>
       <td>${e.confirmedDate?`<strong style="color:var(--dj)">${e.confirmedDate}</strong>`:`<span style="color:var(--dg)">—</span>`}</td>
@@ -707,6 +762,7 @@ function renderDashboard() {
                 : `<span style="color:var(--dj);font-size:11px;font-weight:600">✓ Done</span>`
           }
           ${attemptBadge}
+          ${workElBtn}
           ${accessLetterBtn}
           ${escalateBtn}
           ${attempts > 0 ? `<button class="btn btn-o btn-sm" style="font-size:10px" onclick="viewContactLog(${i})">View log</button>` : ''}
@@ -1558,10 +1614,110 @@ function showResidentUpdatePopup() {
 }
 
 /* ============================================================
+   WORK ELEMENTS — a lightweight list of work items per flat
+   (Kitchen, Bathroom, Asbestos Survey, etc.), each with its own
+   mini status trail. Lighter alternative to a full per-element
+   redesign — lives as a simple list inside each flat's record.
+============================================================ */
+function openWorkElements(i) {
+  const e = db.schedule[i];
+  if (!e.workElements) e.workElements = [];
+
+  const existing = document.getElementById('work-el-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'work-el-modal';
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,40,86,.5);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px`;
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:22px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-size:15px;font-weight:700;color:#002856">Work elements</div>
+        <button onclick="document.getElementById('work-el-modal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#6b6b6b">×</button>
+      </div>
+      <div style="font-size:12px;color:#6b6b6b;margin-bottom:14px">${e.resident} · ${e.flat}</div>
+      <div id="work-el-list-${i}"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <select id="work-el-new-name-${i}" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid #D9D8D6;font-size:13px">
+          ${WORK_ELEMENT_TYPES.map(t => `<option>${t}</option>`).join('')}
+        </select>
+        <button onclick="addWorkElement(${i})" style="background:#008C79;color:#fff;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer">+ Add</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  renderWorkElementsList(i);
+}
+
+function renderWorkElementsList(i) {
+  const e = db.schedule[i];
+  const list = document.getElementById(`work-el-list-${i}`);
+  if (!list) return;
+  const statusColour = { 'Not started':'#6b6b6b', 'Survey booked':'#854f0b', 'Survey completed':'#002856', 'Start date confirmed':'#008C79', 'Completed':'#3b6d11' };
+  list.innerHTML = (e.workElements || []).length ? e.workElements.map((el, ei) => `
+    <div style="background:#f2f3f5;border-radius:9px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong style="font-size:13px;color:#002856">${el.name}</strong>
+        <div style="display:flex;align-items:center;gap:6px">
+          <select onchange="updateWorkElementField(${i},${ei},'status',this.value)" style="font-size:11px;border:1px solid #D9D8D6;border-radius:6px;padding:3px 6px;color:${statusColour[el.status]||'#6b6b6b'};font-weight:600">
+            ${['Not started','Survey booked','Survey completed','Start date confirmed','Completed'].map(s=>`<option${el.status===s?' selected':''}>${s}</option>`).join('')}
+          </select>
+          <button onclick="deleteWorkElement(${i},${ei})" style="background:none;border:none;color:#a32d2d;cursor:pointer;font-size:14px">✕</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
+        <label style="color:#6b6b6b">Intro letter sent<input value="${el.introLetterSent}" placeholder="date" onchange="updateWorkElementField(${i},${ei},'introLetterSent',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
+        <label style="color:#6b6b6b">Survey booked<input value="${el.surveyBooked}" placeholder="date" onchange="updateWorkElementField(${i},${ei},'surveyBooked',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
+        <label style="color:#6b6b6b">Survey completed<input value="${el.surveyCompleted}" placeholder="date" onchange="updateWorkElementField(${i},${ei},'surveyCompleted',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
+        <label style="color:#6b6b6b">Start date<input value="${el.startDate}" placeholder="date" onchange="updateWorkElementField(${i},${ei},'startDate',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
+      </div>
+    </div>`).join('')
+    : '<div style="font-size:12px;color:#6b6b6b;text-align:center;padding:16px 0">No work elements added yet.</div>';
+}
+
+async function addWorkElement(i) {
+  const e = db.schedule[i];
+  if (!e.workElements) e.workElements = [];
+  const name = document.getElementById(`work-el-new-name-${i}`).value;
+  const el = { id: undefined, name, status: 'Not started', introLetterSent:'', surveyBooked:'', surveyCompleted:'', startDate:'' };
+  e.workElements.push(el);
+  renderWorkElementsList(i);
+  renderDashboard();
+
+  if (!e.id) { await saveScheduleToDB(); }
+  if (e.id) {
+    sb.from('work_elements').insert(workElementLocalToRow(e.id, el)).select().single()
+      .then(({ data, error }) => { if (error) console.warn('Save work element failed:', error.message); else if (data) el.id = data.id; });
+  }
+}
+
+function updateWorkElementField(i, ei, field, value) {
+  const e = db.schedule[i];
+  const el = e.workElements[ei]; if (!el) return;
+  el[field] = value;
+  renderDashboard();
+  if (el.id) {
+    sb.from('work_elements').update(workElementLocalToRow(e.id, el)).eq('id', el.id)
+      .then(({ error }) => { if (error) console.warn('Update work element failed:', error.message); });
+  }
+}
+
+function deleteWorkElement(i, ei) {
+  const e = db.schedule[i];
+  const el = e.workElements[ei]; if (!el) return;
+  e.workElements.splice(ei, 1);
+  renderWorkElementsList(i);
+  renderDashboard();
+  if (el.id) {
+    sb.from('work_elements').delete().eq('id', el.id)
+      .then(({ error }) => { if (error) console.warn('Delete work element failed:', error.message); });
+  }
+}
+
+/* ============================================================
    CONTACT LOG — track attempts per resident, escalate after 3+
 ============================================================ */
 const CONTACT_METHODS  = ['SMS', 'Phone call', 'Email', 'Letter', 'Knock on door'];
-const CONTACT_OUTCOMES = ['No response', 'Voicemail left', 'Wrong number', 'Spoke to resident', 'Will call back', 'Refused access'];
+const CONTACT_OUTCOMES = ['No response', 'Voicemail left', 'Wrong number', 'Spoke to resident', 'Will call back', 'Refused access', 'Letter sent'];
 
 function logContactAttempt(i) {
   const e = db.schedule[i];
@@ -1901,7 +2057,43 @@ function generateMandatoryLetter() {
   const win = window.open('', '_blank');
   win.document.write(html);
   win.document.close();
-  showToast(toast, '✓ Letter opened in a new tab — review and print.', 't-g', 4000);
+
+  if (resIdx !== '') {
+    logLetterToContactLog(Number(resIdx), cat, variant, stage);
+    showToast(toast, '✓ Letter opened — and logged against ' + resident.flat + '.', 't-g', 4000);
+  } else {
+    showToast(toast, '✓ Letter opened in a new tab — review and print.', 't-g', 4000);
+  }
+}
+
+async function logLetterToContactLog(i, cat, variant, stage) {
+  const e = db.schedule[i]; if (!e) return;
+  if (!e.contactLog) e.contactLog = [];
+
+  const now = new Date();
+  const note = `${cat.label} — ${variant.label}${stage ? ' (' + stage + ' Request)' : ''}`;
+  const attempt = {
+    method: 'Letter', outcome: 'Letter sent', note,
+    date: now.toLocaleDateString('en-GB',{day:'numeric',month:'short'}),
+    time: now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+  };
+  e.contactLog.push(attempt);
+
+  if (!e.id) { await saveScheduleToDB(); }
+  if (e.id) {
+    sb.from('contact_log').insert({ schedule_id: e.id, method: attempt.method, outcome: attempt.outcome, note: attempt.note })
+      .then(({ error }) => { if (error) console.warn('Save letter to contact log failed:', error.message); });
+  }
+
+  const attempts = e.contactLog.length;
+  if (attempts === 3) {
+    pushNotification('message', `⚠ ${e.flat} (${e.resident}) has had 3 contact attempts with no response. Consider escalating.`);
+  }
+  if (attempts === 5) {
+    pushNotification('message', `🔴 ${e.flat} (${e.resident}) — 5 failed contact attempts. Escalation to L&Q recommended.`);
+  }
+
+  renderDashboard();
 }
 
 function buildMandatoryLetterHTML(catKey, cat, varKey, variant, stage, resident, dateVal) {
