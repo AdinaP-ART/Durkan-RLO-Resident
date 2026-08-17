@@ -55,6 +55,8 @@ const LETTER_TEMPLATE = {
   workType:  'refurbishment and improvement',
   appUrl:    'https://durkan-rlo-resident.vercel.app',
 };
+const WORK_ELEMENT_TYPES = ['Kitchen', 'Bathroom', 'Wet Room', 'Asbestos Survey', 'Fire Door', 'Window & Door', 'Front Entrance Door', 'Other'];
+
 const FB_QUESTIONS = [
   'Overall satisfaction','Professionalism of team',
   'Tidiness — area left clean?','Communication quality',
