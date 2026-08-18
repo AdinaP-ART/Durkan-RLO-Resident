@@ -347,7 +347,8 @@
 
       <!-- BO1: DASHBOARD -->
       <div id="bp-dashboard" class="page">
-        <div class="pg-hdr"><div><div class="pg-title">Dashboard</div><div class="pg-sub">Highbury Gardens · live overview</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-o" onclick="bNav(9)"><i class="ti ti-speakerphone"></i> Post update</button><button class="btn btn-j" onclick="bNav(2)"><i class="ti ti-upload"></i> Upload schedule</button></div></div>
+        <div class="pg-hdr"><div><div class="pg-title">Dashboard</div><div class="pg-sub">Highbury Gardens · live overview</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-o" onclick="downloadDashboardCSV()"><i class="ti ti-download"></i> Download</button><button class="btn btn-o" onclick="bNav(9)"><i class="ti ti-speakerphone"></i> Post update</button><button class="btn btn-j" onclick="bNav(2)"><i class="ti ti-upload"></i> Upload schedule</button></div></div>
+        <div class="toast" id="dash-download-toast" style="display:none"></div>
         <div class="metrics">
           <div class="met"><div class="met-l">Total flats</div><div class="met-v" id="m-total">0</div></div>
           <div class="met"><div class="met-l">Confirmed</div><div class="met-v jade" id="m-conf">0</div></div>
