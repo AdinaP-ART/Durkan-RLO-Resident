@@ -470,6 +470,7 @@ function workElementRowToLocal(r) {
     id: r.id, name: r.name, status: r.status || 'Not started',
     introLetterSent: r.intro_letter_sent || '', surveyBooked: r.survey_booked || '',
     surveyCompleted: r.survey_completed || '', startDate: r.start_date || '',
+    access1Sent: r.access_1_sent || '', access2Sent: r.access_2_sent || '', access3Sent: r.access_3_sent || '',
   };
 }
 
@@ -478,6 +479,7 @@ function workElementLocalToRow(scheduleId, el) {
     schedule_id: scheduleId, name: el.name, status: el.status,
     intro_letter_sent: el.introLetterSent || null, survey_booked: el.surveyBooked || null,
     survey_completed: el.surveyCompleted || null, start_date: el.startDate || null,
+    access_1_sent: el.access1Sent || null, access_2_sent: el.access2Sent || null, access_3_sent: el.access3Sent || null,
   };
 }
 
@@ -785,6 +787,43 @@ function renderDashboard() {
         </div>
       </div>`).join('');
   }
+}
+
+function downloadDashboardCSV() {
+  if (!db.schedule.length) { showToast('dash-download-toast', 'No schedule to export yet.', 't-r'); return; }
+
+  const headers = [
+    'URPN/Access Code','Flat','Resident','Mobile','Overall Status','Confirmed Date',
+    'Contact Attempts','Work Element','Element Status','Intro Letter Sent',
+    'Survey Booked','Survey Completed','Element Start Date',
+    '1st No Access Letter Sent','2nd No Access Letter Sent','3rd No Access Letter Sent'
+  ];
+
+  const rows = [];
+  db.schedule.forEach(e => {
+    const attempts = (e.contactLog||[]).length;
+    const els = (e.workElements&&e.workElements.length) ? e.workElements : [null];
+    els.forEach(el => {
+      rows.push([
+        e.accessCode, e.flat, e.resident, e.mobile||'', e.status, e.confirmedDate||'',
+        attempts,
+        el ? el.name : '', el ? el.status : '', el ? el.introLetterSent : '',
+        el ? el.surveyBooked : '', el ? el.surveyCompleted : '', el ? el.startDate : '',
+        el ? (el.access1Sent||'') : '', el ? (el.access2Sent||'') : '', el ? (el.access3Sent||'') : '',
+      ]);
+    });
+  });
+
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const today = new Date().toLocaleDateString('en-GB').replace(/\//g,'-');
+  a.href = url;
+  a.download = `Highbury_Gardens_Dashboard_${today}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('dash-download-toast', `✓ Downloaded — ${rows.length} row${rows.length!==1?'s':''} across ${db.schedule.length} flat${db.schedule.length!==1?'s':''}.`, 't-g', 5000);
 }
 
 function unlockSlot(i) {
@@ -1665,10 +1704,16 @@ function renderWorkElementsList(i) {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
-        <label style="color:#6b6b6b">Intro letter sent<input value="${el.introLetterSent}" placeholder="date" onchange="updateWorkElementField(${i},${ei},'introLetterSent',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
-        <label style="color:#6b6b6b">Survey booked<input value="${el.surveyBooked}" placeholder="date" onchange="updateWorkElementField(${i},${ei},'surveyBooked',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
-        <label style="color:#6b6b6b">Survey completed<input value="${el.surveyCompleted}" placeholder="date" onchange="updateWorkElementField(${i},${ei},'surveyCompleted',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
-        <label style="color:#6b6b6b">Start date<input value="${el.startDate}" placeholder="date" onchange="updateWorkElementField(${i},${ei},'startDate',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
+        <label style="color:#6b6b6b">Intro letter sent<input type="date" value="${el.introLetterSent}" onchange="updateWorkElementField(${i},${ei},'introLetterSent',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
+        <label style="color:#6b6b6b">Survey booked<input type="date" value="${el.surveyBooked}" onchange="updateWorkElementField(${i},${ei},'surveyBooked',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
+        <label style="color:#6b6b6b">Survey completed<input type="date" value="${el.surveyCompleted}" onchange="updateWorkElementField(${i},${ei},'surveyCompleted',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
+        <label style="color:#6b6b6b">Start date<input type="date" value="${el.startDate}" onchange="updateWorkElementField(${i},${ei},'startDate',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
+      </div>
+      <div style="font-size:10px;font-weight:700;color:#6b6b6b;margin-top:8px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px">No access letters</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px">
+        <label style="color:#6b6b6b">1st sent<input type="date" value="${el.access1Sent}" onchange="updateWorkElementField(${i},${ei},'access1Sent',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
+        <label style="color:#6b6b6b">2nd sent<input type="date" value="${el.access2Sent}" onchange="updateWorkElementField(${i},${ei},'access2Sent',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
+        <label style="color:#6b6b6b">3rd sent<input type="date" value="${el.access3Sent}" onchange="updateWorkElementField(${i},${ei},'access3Sent',this.value)" style="width:100%;margin-top:2px;padding:5px 7px;border-radius:6px;border:1px solid #D9D8D6;font-size:11px"/></label>
       </div>
     </div>`).join('')
     : '<div style="font-size:12px;color:#6b6b6b;text-align:center;padding:16px 0">No work elements added yet.</div>';
@@ -1678,7 +1723,7 @@ async function addWorkElement(i) {
   const e = db.schedule[i];
   if (!e.workElements) e.workElements = [];
   const name = document.getElementById(`work-el-new-name-${i}`).value;
-  const el = { id: undefined, name, status: 'Not started', introLetterSent:'', surveyBooked:'', surveyCompleted:'', startDate:'' };
+  const el = { id: undefined, name, status: 'Not started', introLetterSent:'', surveyBooked:'', surveyCompleted:'', startDate:'', access1Sent:'', access2Sent:'', access3Sent:'' };
   e.workElements.push(el);
   renderWorkElementsList(i);
   renderDashboard();
@@ -1968,13 +2013,16 @@ function renderMandatoryLettersPage() {
   const catOptions = Object.keys(MANDATORY_LETTERS).map(k =>
     `<option value="${k}">${MANDATORY_LETTERS[k].label}</option>`).join('');
 
-  const residentOptions = db.schedule.map((e, i) =>
-    `<option value="${i}">${e.flat} — ${e.resident}</option>`).join('');
+  const residentChecks = db.schedule.map((e, i) => `
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;cursor:pointer" onmouseover="this.style.background='var(--dbg)'" onmouseout="this.style.background=''">
+      <input type="checkbox" class="ml-flat-check" value="${i}" style="width:15px;height:15px"/>
+      <span style="font-size:12px;color:var(--db)">${e.flat} — ${e.resident}</span>
+    </label>`).join('');
 
   wrap.innerHTML = `
     <div class="panel">
       <div class="panel-t">Generate a mandatory letter</div>
-      <p style="font-size:12px;color:var(--dgd);margin-bottom:14px">These are the standard letters required by L&amp;Q for the resident file. Choose a category, then the specific letter, fill in the details, and generate a print-ready copy.</p>
+      <p style="font-size:12px;color:var(--dgd);margin-bottom:14px">These are the standard letters required by L&amp;Q for the resident file. Choose a category, then the specific letter, select who it's going to, and generate a print-ready copy.</p>
 
       <label class="flbl">Letter category</label>
       <select class="field" id="ml-category" onchange="updateLetterVariants()">
@@ -1983,7 +2031,7 @@ function renderMandatoryLettersPage() {
       </select>
 
       <label class="flbl">Specific letter</label>
-      <select class="field" id="ml-variant" onchange="updateLetterStageVisibility()">
+      <select class="field" id="ml-variant">
         <option value="">Select a category first...</option>
       </select>
 
@@ -1996,23 +2044,29 @@ function renderMandatoryLettersPage() {
         </select>
       </div>
 
-      <label class="flbl">Resident / flat</label>
-      <select class="field" id="ml-resident">
-        <option value="">Select a flat...</option>
-        ${residentOptions}
-      </select>
-      ${!db.schedule.length ? '<div style="font-size:11px;color:var(--dgd);margin-top:-6px;margin-bottom:8px">No flats loaded yet — upload a schedule first, or generate this letter with resident details left blank to fill in by hand.</div>' : ''}
+      <label class="flbl">Send to</label>
+      ${db.schedule.length ? `
+        <div style="display:flex;gap:12px;margin-bottom:6px">
+          <a href="#" onclick="setAllLetterFlats(true);return false" style="font-size:11px;color:var(--dj)">Select all</a>
+          <a href="#" onclick="setAllLetterFlats(false);return false" style="font-size:11px;color:var(--dj)">Clear</a>
+        </div>
+        <div style="max-height:220px;overflow-y:auto;border:1px solid var(--dg);border-radius:9px;padding:4px">${residentChecks}</div>
+      ` : '<div style="font-size:12px;color:var(--dgd)">No flats loaded yet — upload a schedule first.</div>'}
 
-      <label class="flbl">Commencement / appointment date</label>
+      <label class="flbl" style="margin-top:12px">Commencement / appointment date</label>
       <input class="field" id="ml-date" placeholder="e.g. 14 August 2026"/>
 
-      <button class="btn btn-j" onclick="generateMandatoryLetter()"><i class="ti ti-file-text"></i> Generate letter</button>
+      <button class="btn btn-j" onclick="generateMandatoryLetter()" style="margin-top:6px"><i class="ti ti-file-text"></i> Generate letter</button>
       <div class="toast" id="ml-toast" style="display:none"></div>
     </div>
     <div class="panel">
       <div class="panel-t">About these letters</div>
-      <p style="font-size:12px;color:var(--dgd);line-height:1.6">Each letter opens in a new tab, ready to review, edit the highlighted fields, and print. The required Hi-Vis/photo ID safety notice and standard apology closing are included automatically on every letter, matching Durkan's approved wording.</p>
+      <p style="font-size:12px;color:var(--dgd);line-height:1.6">Select one or more residents to send the same letter to several people at once — each gets their own page in a single print job, and each is logged individually against their own flat. The required Hi-Vis/photo ID safety notice and standard apology closing are included automatically, matching Durkan's approved wording.</p>
     </div>`;
+}
+
+function setAllLetterFlats(checked) {
+  document.querySelectorAll('.ml-flat-check').forEach(cb => { cb.checked = checked; });
 }
 
 function updateLetterVariants() {
@@ -2044,25 +2098,52 @@ function generateMandatoryLetter() {
   const stage = cat.hasStage ? document.getElementById('ml-stage').value : null;
   const dateVal = document.getElementById('ml-date').value.trim() || '[date]';
 
-  const resIdx = document.getElementById('ml-resident').value;
-  let resident;
-  if (resIdx !== '') {
-    const e = db.schedule[Number(resIdx)];
-    resident = { name: e.resident, flat: e.flat, address: 'Highbury Gardens' };
-  } else {
-    resident = { name: 'Resident', flat: '[Flat]', address: 'Highbury Gardens' };
+  const checked = Array.from(document.querySelectorAll('.ml-flat-check:checked')).map(cb => Number(cb.value));
+
+  if (!checked.length) {
+    // No flats selected — generate one blank letter to fill in by hand
+    const resident = { name: 'Resident', flat: '[Flat]', address: 'Highbury Gardens' };
+    const html = buildMandatoryLettersBatchHTML(catKey, cat, varKey, variant, stage, [resident], dateVal);
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    showToast(toast, '✓ Letter opened in a new tab — review and print.', 't-g', 4000);
+    return;
   }
 
-  const html = buildMandatoryLetterHTML(catKey, cat, varKey, variant, stage, resident, dateVal);
+  const residents = checked.map(i => {
+    const e = db.schedule[i];
+    return { name: e.resident, flat: e.flat, address: 'Highbury Gardens' };
+  });
+
+  const html = buildMandatoryLettersBatchHTML(catKey, cat, varKey, variant, stage, residents, dateVal);
   const win = window.open('', '_blank');
   win.document.write(html);
   win.document.close();
 
-  if (resIdx !== '') {
-    logLetterToContactLog(Number(resIdx), cat, variant, stage);
-    showToast(toast, '✓ Letter opened — and logged against ' + resident.flat + '.', 't-g', 4000);
-  } else {
-    showToast(toast, '✓ Letter opened in a new tab — review and print.', 't-g', 4000);
+  checked.forEach(i => {
+    logLetterToContactLog(i, cat, variant, stage);
+    if (catKey === 'access' && stage) stampWorkElementAccessLetter(i, varKey, stage);
+  });
+
+  showToast(toast, `✓ Letter opened — ${checked.length} page${checked.length!==1?'s':''}, logged against ${checked.length} flat${checked.length!==1?'s':''}.`, 't-g', 5000);
+}
+
+// If the flat has a matching work element (Kitchen/Bathroom), auto-stamp the
+// right 1st/2nd/3rd no-access date field so it shows at a glance.
+function stampWorkElementAccessLetter(i, varKey, stage) {
+  const e = db.schedule[i];
+  if (!e || !e.workElements || !e.workElements.length) return;
+  const nameMatch = varKey === 'kitchen' ? 'Kitchen' : varKey === 'bathroom' ? 'Bathroom' : null;
+  if (!nameMatch) return;
+  const el = e.workElements.find(x => x.name === nameMatch);
+  if (!el) return;
+  const field = stage === '1st' ? 'access1Sent' : stage === '2nd' ? 'access2Sent' : 'access3Sent';
+  const today = new Date().toISOString().slice(0, 10); // yyyy-mm-dd, matches the date picker fields
+  el[field] = today;
+  if (el.id) {
+    sb.from('work_elements').update(workElementLocalToRow(e.id, el)).eq('id', el.id)
+      .then(({ error }) => { if (error) console.warn('Auto-stamp access letter failed:', error.message); });
   }
 }
 
@@ -2096,18 +2177,29 @@ async function logLetterToContactLog(i, cat, variant, stage) {
   renderDashboard();
 }
 
-function buildMandatoryLetterHTML(catKey, cat, varKey, variant, stage, resident, dateVal) {
+function buildMandatoryLettersBatchHTML(catKey, cat, varKey, variant, stage, residents, dateVal) {
+  const title = variant.title || variant.subject || '';
+  const pages = residents.map((resident, idx) =>
+    `<div class="${idx < residents.length - 1 ? 'page-break' : ''}">${buildMandatoryLetterPage(catKey, cat, varKey, variant, stage, resident, dateVal)}</div>`
+  ).join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${title}</title>${letterStyles()}</head><body>
+    <div class="edit-hint">
+      ✏️ Fields underlined with dashes are editable. Everything else is fixed wording.${residents.length > 1 ? ` (${residents.length} letters — one per page)` : ''}
+      <button onclick="window.print()">🖨 Print ${residents.length > 1 ? 'all letters' : 'letter'}</button>
+    </div>
+    ${pages}
+  </body></html>`;
+}
+
+function buildMandatoryLetterPage(catKey, cat, varKey, variant, stage, resident, dateVal) {
   const t = LETTER_TEMPLATE;
   const today = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
   const title = variant.title || variant.subject || '';
   const body = buildMandatoryLetterBody(catKey, cat, varKey, variant, stage, dateVal);
   const signOff = cat.signOff;
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${title}</title>${letterStyles()}</head><body>
-    <div class="edit-hint">
-      ✏️ Fields underlined with dashes are editable. Everything else is fixed wording.
-      <button onclick="window.print()">🖨 Print letter</button>
-    </div>
+  return `
     <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:40px;font-size:13px;color:#222;line-height:1.6">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #008C79;padding-bottom:16px;margin-bottom:20px">
         <div>
@@ -2148,8 +2240,7 @@ function buildMandatoryLetterHTML(catKey, cat, varKey, variant, stage, resident,
           ${signOff.cc ? `<div style="margin-top:8px">Cc: L&amp;Q</div>` : ''}
         </div>
       </div>
-    </div>
-  </body></html>`;
+    </div>`;
 }
 
 function letterDetailRow(label, value) {
@@ -2240,9 +2331,10 @@ function openAccessLetterFor(i) {
     document.getElementById('ml-variant').value = guessKitchen ? 'kitchen' : 'bathroom';
     const attempts = (e.contactLog || []).length;
     document.getElementById('ml-stage').value = attempts >= 3 ? '3rd' : attempts === 2 ? '2nd' : '1st';
-    const residentSelect = document.getElementById('ml-resident');
+    setAllLetterFlats(false);
     const idx = db.schedule.indexOf(e);
-    residentSelect.value = String(idx);
+    const cb = document.querySelector(`.ml-flat-check[value="${idx}"]`);
+    if (cb) cb.checked = true;
     showToast('ml-toast', 'Details pre-filled from the contact log — check and generate.', 't-j', 5000);
   }, 100);
 }
