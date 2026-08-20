@@ -83,17 +83,19 @@ function logout(role) {
 /* ============================================================
    RESIDENT NAV
 ============================================================ */
-const resPageMap = { 1:'rp-home', 2:'rp-appts', 3:'rp-defects', 4:'rp-message', 5:'rp-faq', 6:'rp-feedback', 7:'rp-during', 8:'rp-colours', 9:'rp-updates' };
+const resPageMap = { 1:'rp-home', 2:'rp-appts', 3:'rp-defects', 4:'rp-message', 5:'rp-faq', 6:'rp-feedback', 7:'rp-during', 8:'rp-colours', 9:'rp-updates', 10:'rp-infopack', 11:'rp-maintenance' };
 const resNavDef  = [
-  { i:1, icon:'ti-home',           label:'Home' },
-  { i:2, icon:'ti-calendar',       label:'Choose Your Start Date' },
-  { i:7, icon:'ti-hard-hat',       label:'During Works' },
-  { i:8, icon:'ti-photo',          label:'Examples of Finished Work' },
-  { i:9, icon:'ti-speakerphone',   label:'Updates & Events' },
-  { i:3, icon:'ti-alert-triangle', label:'Report an Issue' },
-  { i:4, icon:'ti-mail',           label:'Message Durkan' },
-  { i:5, icon:'ti-help',           label:'FAQ & Guides' },
-  { i:6, icon:'ti-star',           label:'Satisfaction Survey' },
+  { i:1,  icon:'ti-home',           label:'Home' },
+  { i:10, icon:'ti-book',           label:'Resident Information Pack' },
+  { i:2,  icon:'ti-calendar',       label:'Choose Your Start Date' },
+  { i:7,  icon:'ti-hard-hat',       label:'During Works' },
+  { i:8,  icon:'ti-photo',          label:'Examples of Finished Work' },
+  { i:9,  icon:'ti-speakerphone',   label:'Updates & Events' },
+  { i:3,  icon:'ti-alert-triangle', label:'Report an Issue' },
+  { i:4,  icon:'ti-mail',           label:'Message Durkan' },
+  { i:5,  icon:'ti-help',           label:'FAQ & Guides' },
+  { i:6,  icon:'ti-star',           label:'Satisfaction Survey' },
+  { i:11, icon:'ti-tool',           label:'Maintenance & User Guide' },
 ];let curResPage = 0;
 
 function buildResNav(cur) {
