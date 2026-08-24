@@ -18,6 +18,8 @@ let duringWorksList = [];
 function checkUrlCode() {
   const params = new URLSearchParams(window.location.search);
   const code   = params.get('code');
+  const letter = params.get('letter');
+  if (letter) openLetterAfterLoad = letter;
   if (code) {
     const inp = document.getElementById('res-code');
     if (inp) { inp.value = code.toUpperCase(); resLogin(true); }
@@ -83,7 +85,7 @@ function logout(role) {
 /* ============================================================
    RESIDENT NAV
 ============================================================ */
-const resPageMap = { 1:'rp-home', 2:'rp-appts', 3:'rp-defects', 4:'rp-message', 5:'rp-faq', 6:'rp-feedback', 7:'rp-during', 8:'rp-colours', 9:'rp-updates', 10:'rp-infopack', 11:'rp-maintenance' };
+const resPageMap = { 1:'rp-home', 2:'rp-appts', 3:'rp-defects', 4:'rp-message', 5:'rp-faq', 6:'rp-feedback', 7:'rp-during', 8:'rp-colours', 9:'rp-updates', 10:'rp-infopack', 11:'rp-maintenance', 12:'rp-my-letters' };
 const resNavDef  = [
   { i:1,  icon:'ti-home',           label:'Home' },
   { i:10, icon:'ti-book',           label:'Resident Information Pack' },
@@ -91,6 +93,7 @@ const resNavDef  = [
   { i:7,  icon:'ti-hard-hat',       label:'During Works' },
   { i:8,  icon:'ti-photo',          label:'Examples of Finished Work' },
   { i:9,  icon:'ti-speakerphone',   label:'Updates & Events' },
+  { i:12, icon:'ti-mail-opened',    label:'My Letters' },
   { i:3,  icon:'ti-alert-triangle', label:'Report an Issue' },
   { i:4,  icon:'ti-mail',           label:'Message Durkan' },
   { i:5,  icon:'ti-help',           label:'FAQ & Guides' },
@@ -123,6 +126,7 @@ function rNav(i) {
   if (i === 7) renderDuringWorksResident();
   if (i === 8) renderColoursResident();
   if (i === 9) renderUpdatesResident();
+  if (i === 12) renderMyLetters();
 }
 
 /* ============================================================
@@ -195,8 +199,12 @@ async function resLogin(auto = false) {
     chip.textContent = '🔒 ' + match.flat; chip.style.display = 'inline-block';
     await loadReadUpdatesForResident();
     renderResidentHome();
-    rNav(1);
-    setTimeout(() => showResidentUpdatePopup(), 800);
+    if (openLetterAfterLoad) {
+      rNav(12);
+    } else {
+      rNav(1);
+      setTimeout(() => showResidentUpdatePopup(), 800);
+    }
   } else if (!auto) {
     if (inp) inp.classList.add('error');
     if (err) err.style.display = 'block';
@@ -750,6 +758,7 @@ function renderDashboard() {
       : '';
     const elCount = (e.workElements||[]).length;
     const workElBtn = `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openWorkElements(${i})"><i class="ti ti-list-check"></i> Work elements${elCount?' ('+elCount+')':''}</button>`;
+    const lettersBtn = `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openFlatLetters(${i})"><i class="ti ti-mail-opened"></i> Letters</button>`;
     return `<tr style="${rowBg}">
       <td><strong>${e.flat}</strong></td><td>${e.resident}<div style="margin-top:3px">${letterBadgesFor(e.contactLog)}</div></td><td>${e.workType}</td>
       <td><span class="code-chip">${e.accessCode}</span></td>
@@ -767,6 +776,7 @@ function renderDashboard() {
           }
           ${attemptBadge}
           ${workElBtn}
+          ${lettersBtn}
           ${accessLetterBtn}
           ${escalateBtn}
           ${attempts > 0 ? `<button class="btn btn-o btn-sm" style="font-size:10px" onclick="viewContactLog(${i})">View log</button>` : ''}
@@ -1761,6 +1771,42 @@ function deleteWorkElement(i, ei) {
 }
 
 /* ============================================================
+   MY LETTERS — resident-facing view of letters sent to them
+============================================================ */
+let openLetterAfterLoad = null;
+
+async function renderMyLetters() {
+  const body = document.getElementById('r-my-letters-body');
+  if (!body || !db.currentResident) return;
+  body.innerHTML = '<div class="empty-msg">Loading...</div>';
+  try {
+    const { data, error } = await sb.from('letters_sent').select('*').eq('flat', db.currentResident.flat).order('created_at', { ascending: false });
+    if (error) { console.warn('Load my letters failed:', error.message); body.innerHTML = '<div class="empty-msg">Could not load letters — check your connection.</div>'; return; }
+    if (!data.length) { body.innerHTML = '<div class="empty-msg">No letters yet. Anything Durkan sends you will appear here.</div>'; return; }
+    body.innerHTML = data.map(l => `
+      <div class="faq-item" onclick="toggleFaq(this)">
+        <div class="faq-q">${l.title}${l.stage?' — '+l.stage+' Request':''}</div>
+        <div class="faq-a" style="max-height:none">
+          <div style="font-size:10px;color:var(--dg);margin-bottom:8px">${new Date(l.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>
+          <div style="background:#fff;border-radius:8px;padding:10px;font-size:11px">${(l.body_html||'').replace(/contenteditable="true"/g,'')}</div>
+        </div>
+      </div>`).join('');
+
+    if (openLetterAfterLoad) {
+      const idx = data.findIndex(l => l.id === openLetterAfterLoad);
+      openLetterAfterLoad = null;
+      if (idx > -1) {
+        const items = body.querySelectorAll('.faq-item');
+        if (items[idx]) toggleFaq(items[idx]);
+      }
+    }
+  } catch (err) {
+    console.warn('Load my letters error:', err.message);
+    body.innerHTML = '<div class="empty-msg">Could not load letters — check your connection.</div>';
+  }
+}
+
+/* ============================================================
    CONTACT LOG — track attempts per resident, escalate after 3+
 ============================================================ */
 const CONTACT_METHODS  = ['SMS', 'Phone call', 'Email', 'Letter', 'Knock on door'];
@@ -2058,13 +2104,23 @@ function renderMandatoryLettersPage() {
       <label class="flbl" style="margin-top:12px">Commencement / appointment date</label>
       <input class="field" id="ml-date" placeholder="e.g. 14 August 2026"/>
 
+      <label style="display:flex;align-items:center;gap:8px;margin:12px 0;cursor:pointer">
+        <input type="checkbox" id="ml-send-sms" style="width:16px;height:16px"/>
+        <span style="font-size:12px;color:var(--db)">Also text residents a link to view this letter (in addition to the printed copy)</span>
+      </label>
+
       <button class="btn btn-j" onclick="generateMandatoryLetter()" style="margin-top:6px"><i class="ti ti-file-text"></i> Generate letter</button>
       <div class="toast" id="ml-toast" style="display:none"></div>
     </div>
     <div class="panel">
       <div class="panel-t">About these letters</div>
       <p style="font-size:12px;color:var(--dgd);line-height:1.6">Select one or more residents to send the same letter to several people at once — each gets their own page in a single print job, and each is logged individually against their own flat. The required Hi-Vis/photo ID safety notice and standard apology closing are included automatically, matching Durkan's approved wording.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-t">Recently sent <span class="spill sp-b" id="letters-sent-count">0</span></div>
+      <div id="letters-sent-list"><div class="empty-msg">No letters generated yet.</div></div>
     </div>`;
+  renderLettersSentList();
 }
 
 function setAllLetterFlats(checked) {
@@ -2089,7 +2145,7 @@ function updateLetterStageVisibility() {
   // placeholder hook — stage visibility is controlled by category, kept for future per-variant overrides
 }
 
-function generateMandatoryLetter() {
+async function generateMandatoryLetter() {
   const catKey = document.getElementById('ml-category').value;
   const varKey = document.getElementById('ml-variant').value;
   const toast = 'ml-toast';
@@ -2099,6 +2155,7 @@ function generateMandatoryLetter() {
   const variant = cat.variants[varKey];
   const stage = cat.hasStage ? document.getElementById('ml-stage').value : null;
   const dateVal = document.getElementById('ml-date').value.trim() || '[date]';
+  const sendSmsLink = document.getElementById('ml-send-sms').checked;
 
   const checked = Array.from(document.querySelectorAll('.ml-flat-check:checked')).map(cb => Number(cb.value));
 
@@ -2123,12 +2180,104 @@ function generateMandatoryLetter() {
   win.document.write(html);
   win.document.close();
 
-  checked.forEach(i => {
+  const title = variant.title || variant.subject || '';
+  let smsCount = 0;
+
+  for (const i of checked) {
+    const e = db.schedule[i];
     logLetterToContactLog(i, cat, variant, stage);
     if (catKey === 'access' && stage) stampWorkElementAccessLetter(i, varKey, stage);
-  });
 
-  showToast(toast, `✓ Letter opened — ${checked.length} page${checked.length!==1?'s':''}, logged against ${checked.length} flat${checked.length!==1?'s':''}.`, 't-g', 5000);
+    const resident = { name: e.resident, flat: e.flat, address: 'Highbury Gardens' };
+    const bodyHtml = buildMandatoryLetterPage(catKey, cat, varKey, variant, stage, resident, dateVal);
+    const letterId = await saveLetterSent(e, catKey, varKey, stage, title, bodyHtml, sendSmsLink ? 'SMS' : 'Print');
+
+    if (sendSmsLink && e.mobile && letterId) {
+      const link = `${LETTER_TEMPLATE.appUrl}?code=${e.accessCode}&letter=${letterId}`;
+      sendSMS(e.mobile, `Hi ${e.resident.split(' ')[0]}, Durkan has sent you a new letter regarding your ${variant.label}. View it here: ${link}`);
+      smsCount++;
+    }
+  }
+
+  renderLettersSentList();
+  showToast(toast, `✓ Letter opened — ${checked.length} page${checked.length!==1?'s':''}, logged and recorded.${sendSmsLink ? ` ${smsCount} resident${smsCount!==1?'s':''} texted a link.` : ''}`, 't-g', 6000);
+}
+
+async function saveLetterSent(e, catKey, varKey, stage, title, bodyHtml, sentVia) {
+  if (!e.id) { await saveScheduleToDB(); }
+  if (!e.id) return null;
+  const { data, error } = await sb.from('letters_sent').insert({
+    schedule_id: e.id, flat: e.flat, resident: e.resident,
+    category: catKey, variant: varKey, stage, title, body_html: bodyHtml, sent_via: sentVia,
+  }).select().single();
+  if (error) { console.warn('Save letter record failed:', error.message); return null; }
+  return data.id;
+}
+
+async function openFlatLetters(i) {
+  const e = db.schedule[i];
+
+  const existing = document.getElementById('flat-letters-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'flat-letters-modal';
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,40,86,.5);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px`;
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:22px;width:100%;max-width:460px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-size:15px;font-weight:700;color:#002856">Letters sent</div>
+        <button onclick="document.getElementById('flat-letters-modal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#6b6b6b">×</button>
+      </div>
+      <div style="font-size:12px;color:#6b6b6b;margin-bottom:14px">${e.resident} · ${e.flat}</div>
+      <div id="flat-letters-list-${i}"><div style="font-size:12px;color:#6b6b6b;text-align:center;padding:16px 0">Loading...</div></div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  try {
+    const { data, error } = await sb.from('letters_sent').select('*').eq('flat', e.flat).order('created_at', { ascending: false });
+    const list = document.getElementById(`flat-letters-list-${i}`);
+    if (!list) return;
+    if (error) { list.innerHTML = '<div style="font-size:12px;color:#a32d2d">Could not load letters.</div>'; return; }
+    if (!data.length) { list.innerHTML = '<div style="font-size:12px;color:#6b6b6b;text-align:center;padding:16px 0">No letters sent to this flat yet.</div>'; return; }
+    list.innerHTML = data.map((l, li) => `
+      <div style="background:#f2f3f5;border-radius:9px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="const c=document.getElementById('fl-body-${i}-${li}');c.style.display=c.style.display==='none'?'block':'none'">
+          <div>
+            <strong style="font-size:12px;color:#002856">${l.title}${l.stage?' — '+l.stage+' Request':''}</strong><br>
+            <span style="font-size:10px;color:#6b6b6b">${new Date(l.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</span>
+          </div>
+          <span class="spill ${l.sent_via==='SMS'?'sp-g':'sp-b'}" style="font-size:10px">${l.sent_via}</span>
+        </div>
+        <div id="fl-body-${i}-${li}" style="display:none;margin-top:8px;background:#fff;border-radius:7px;padding:10px;font-size:11px">${(l.body_html||'').replace(/contenteditable="true"/g,'')}</div>
+      </div>`).join('');
+  } catch (err) {
+    console.warn('Load flat letters error:', err.message);
+  }
+}
+
+async function renderLettersSentList() {
+  const list = document.getElementById('letters-sent-list');
+  const countEl = document.getElementById('letters-sent-count');
+  if (!list) return;
+  try {
+    const { data, error } = await sb.from('letters_sent').select('*').order('created_at', { ascending: false }).limit(20);
+    if (error) { console.warn('Load letters sent failed:', error.message); return; }
+    if (countEl) countEl.textContent = data.length;
+    list.innerHTML = data.length ? data.map(l => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--dg);font-size:12px">
+        <div>
+          <strong style="color:var(--db)">${l.flat}</strong> — ${l.resident}<br>
+          <span style="color:var(--dgd);font-size:11px">${l.title}${l.stage?' ('+l.stage+' Request)':''}</span>
+        </div>
+        <div style="text-align:right">
+          <span class="spill ${l.sent_via==='SMS'?'sp-g':'sp-b'}" style="font-size:10px">${l.sent_via}</span><br>
+          <span style="color:var(--dg);font-size:10px">${new Date(l.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span>
+        </div>
+      </div>`).join('') : '<div class="empty-msg">No letters generated yet.</div>';
+  } catch (err) {
+    console.warn('Load letters sent error:', err.message);
+  }
 }
 
 // If the flat has a matching work element (Kitchen/Bathroom), auto-stamp the
