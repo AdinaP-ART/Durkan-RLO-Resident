@@ -2181,7 +2181,8 @@ async function generateMandatoryLetter() {
   win.document.close();
 
   const title = variant.title || variant.subject || '';
-  let smsCount = 0;
+  let smsCount = 0, savedCount = 0;
+  const saveErrors = [];
 
   for (const i of checked) {
     const e = db.schedule[i];
@@ -2190,28 +2191,43 @@ async function generateMandatoryLetter() {
 
     const resident = { name: e.resident, flat: e.flat, address: 'Highbury Gardens' };
     const bodyHtml = buildMandatoryLetterPage(catKey, cat, varKey, variant, stage, resident, dateVal);
-    const letterId = await saveLetterSent(e, catKey, varKey, stage, title, bodyHtml, sendSmsLink ? 'SMS' : 'Print');
+    const result = await saveLetterSent(e, catKey, varKey, stage, title, bodyHtml, sendSmsLink ? 'SMS' : 'Print');
 
-    if (sendSmsLink && e.mobile && letterId) {
-      const link = `${LETTER_TEMPLATE.appUrl}?code=${e.accessCode}&letter=${letterId}`;
-      sendSMS(e.mobile, `Hi ${e.resident.split(' ')[0]}, Durkan has sent you a new letter regarding your ${variant.label}. View it here: ${link}`);
-      smsCount++;
+    if (result.id) {
+      savedCount++;
+      if (sendSmsLink && e.mobile) {
+        const link = `${LETTER_TEMPLATE.appUrl}?code=${e.accessCode}&letter=${result.id}`;
+        sendSMS(e.mobile, `Hi ${e.resident.split(' ')[0]}, Durkan has sent you a new letter regarding your ${variant.label}. View it here: ${link}`);
+        smsCount++;
+      }
+    } else {
+      saveErrors.push(`${e.flat}: ${result.error || 'unknown error'}`);
     }
   }
 
   renderLettersSentList();
-  showToast(toast, `✓ Letter opened — ${checked.length} page${checked.length!==1?'s':''}, logged and recorded.${sendSmsLink ? ` ${smsCount} resident${smsCount!==1?'s':''} texted a link.` : ''}`, 't-g', 6000);
+
+  if (saveErrors.length) {
+    showToast(toast, `⚠ Letter opened, but ${saveErrors.length} of ${checked.length} could not be recorded — ${saveErrors[0]}`, 't-r', 9000);
+  } else {
+    showToast(toast, `✓ Letter opened — ${checked.length} page${checked.length!==1?'s':''}, ${savedCount} recorded.${sendSmsLink ? ` ${smsCount} resident${smsCount!==1?'s':''} texted a link.` : ''}`, 't-g', 6000);
+  }
 }
 
 async function saveLetterSent(e, catKey, varKey, stage, title, bodyHtml, sentVia) {
   if (!e.id) { await saveScheduleToDB(); }
-  if (!e.id) return null;
-  const { data, error } = await sb.from('letters_sent').insert({
-    schedule_id: e.id, flat: e.flat, resident: e.resident,
-    category: catKey, variant: varKey, stage, title, body_html: bodyHtml, sent_via: sentVia,
-  }).select().single();
-  if (error) { console.warn('Save letter record failed:', error.message); return null; }
-  return data.id;
+  if (!e.id) return { id: null, error: 'This flat has no database record yet — try publishing the schedule again first.' };
+  try {
+    const { data, error } = await sb.from('letters_sent').insert({
+      schedule_id: e.id, flat: e.flat, resident: e.resident,
+      category: catKey, variant: varKey, stage, title, body_html: bodyHtml, sent_via: sentVia,
+    }).select().single();
+    if (error) { console.warn('Save letter record failed:', error.message); return { id: null, error: error.message }; }
+    return { id: data.id, error: null };
+  } catch (err) {
+    console.warn('Save letter record threw:', err.message);
+    return { id: null, error: err.message };
+  }
 }
 
 async function openFlatLetters(i) {
