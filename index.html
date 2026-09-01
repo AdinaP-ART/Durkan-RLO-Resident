@@ -96,6 +96,7 @@
             <div class="mc" onclick="rNav(7)"><div class="mi mi-j"><i class="ti ti-hard-hat"></i></div><div style="flex:1"><div class="mi-t">During Works</div><div class="mi-s" id="r-during-sub">Tomorrow's works schedule</div></div><span class="mc-pill pill-j" id="r-during-n" style="display:none">New</span></div>
             <div class="mc" onclick="rNav(8)"><div class="mi" style="background:#fdeef0;color:#c2185b"><i class="ti ti-photo"></i></div><div style="flex:1"><div class="mi-t">Examples of finished work</div><div class="mi-s">See completed kitchens &amp; bathrooms</div></div></div>
             <div class="mc" onclick="rNav(9)"><div class="mi" style="background:#eef3fc;color:#1d4ed8"><i class="ti ti-speakerphone"></i></div><div style="flex:1"><div class="mi-t">Project updates &amp; events</div><div class="mi-s" id="r-updates-sub">Site news, events &amp; job opportunities</div></div><span class="mc-pill pill-j" id="r-updates-n" style="display:none">New</span></div>
+            <div class="mc" onclick="rNav(12)"><div class="mi" style="background:#f3e8fd;color:#7c3aed"><i class="ti ti-mail-opened"></i></div><div style="flex:1"><div class="mi-t">My Letters</div><div class="mi-s">Letters Durkan has sent you</div></div></div>
             <div class="mc" onclick="rNav(3)"><div class="mi mi-r"><i class="ti ti-alert-triangle"></i></div><div style="flex:1"><div class="mi-t">Report an issue</div><div class="mi-s" id="r-def-sub">Report a problem in your home</div></div><span class="mc-pill pill-r" id="r-def-n" style="display:none"></span></div>
             <div class="mc" onclick="rNav(4)"><div class="mi mi-a"><i class="ti ti-mail"></i></div><div style="flex:1"><div class="mi-t">Message Durkan</div><div class="mi-s">Contact your RLO</div></div></div>
             <div class="mc" onclick="rNav(6)"><div class="mi mi-j"><i class="ti ti-star"></i></div><div style="flex:1"><div class="mi-t">Satisfaction survey</div><div class="mi-s">Share your feedback</div></div></div>
@@ -276,6 +277,25 @@
           <div class="jbar"></div>
           <div class="ph-body" id="r-updates-body">
             <div class="empty-msg">No updates yet. Check back soon.</div>
+          </div>
+          <nav class="pnav">
+            <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
+            <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
+            <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
+            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
+          </nav>
+        </div></div></div>
+      </div>
+
+      <!-- R12: MY LETTERS -->
+      <div id="rp-my-letters" class="page">
+        <div class="phone-wrap"><div class="phone"><div class="phone-in">
+          <div class="notch"><div class="nb"></div></div>
+          <div class="ph-hdr"><div class="ph-eye">Letters</div><div class="ph-h sm">My Letters</div><div class="ph-s">Letters Durkan has sent you</div></div>
+          <div class="jbar"></div>
+          <div class="ph-body" id="r-my-letters-body">
+            <div class="empty-msg">No letters yet. Anything Durkan sends you will appear here.</div>
           </div>
           <nav class="pnav">
             <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
