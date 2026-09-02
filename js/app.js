@@ -401,7 +401,11 @@ function addEntry() {
 async function publishSchedule() {
   if (!db.schedule.length) { showToast('publish-toast','Add at least one entry first.','t-r'); return; }
   showToast('publish-toast','Saving to database...','t-j',8000);
-  await saveScheduleToDB();
+  const result = await saveScheduleToDB();
+  if (!result.success) {
+    showToast('publish-toast', `⚠ Not published — the database rejected the save: ${result.error}`, 't-r', 10000);
+    return;
+  }
   db.published = true;
   await setPublishedInDB(true);
   showToast('publish-toast','✓ Published and saved — residents can now log in and select dates.','t-g',5000);
@@ -513,15 +517,24 @@ function workElementLocalToRow(scheduleId, el) {
 }
 
 async function saveScheduleToDB() {
-  if (!db.schedule.length) return;
+  if (!db.schedule.length) return { success: false, error: 'No schedule loaded.' };
   const rows = db.schedule.map(scheduleRowToDb);
-  const { data, error } = await sb.from('schedule').upsert(rows, { onConflict: 'access_code' }).select();
-  if (error) { console.warn('Save schedule failed:', error.message); showToast('publish-toast','Saved locally, but the database could not be reached.','t-r',6000); return; }
-  if (data) {
-    data.forEach(row => {
-      const e = db.schedule.find(x => x.accessCode === row.access_code);
-      if (e) e.id = row.id;
-    });
+  try {
+    const { data, error } = await sb.from('schedule').upsert(rows, { onConflict: 'access_code' }).select();
+    if (error) {
+      console.warn('Save schedule failed:', error.message);
+      return { success: false, error: error.message };
+    }
+    if (data) {
+      data.forEach(row => {
+        const e = db.schedule.find(x => x.accessCode === row.access_code);
+        if (e) e.id = row.id;
+      });
+    }
+    return { success: true, error: null };
+  } catch (err) {
+    console.warn('Save schedule threw:', err.message);
+    return { success: false, error: err.message };
   }
 }
 
