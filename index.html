@@ -432,7 +432,7 @@
         </div>
         <div id="bo-empty" class="panel" style="text-align:center;padding:32px;color:var(--dgd)"><i class="ti ti-calendar-off" style="font-size:32px;display:block;margin:0 auto 10px;color:var(--dg)"></i><p style="margin-bottom:12px">No schedule uploaded yet.</p><button class="btn btn-j" onclick="bNav(2)">Upload works schedule</button></div>
         <div id="bo-dash-wrap" style="display:none">
-          <div class="panel"><div class="panel-t">Appointment tracker <span class="spill sp-b" id="dash-ts">—</span></div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Flat</th><th>Resident</th><th>Work type</th><th>Access code</th><th>Status</th><th>Confirmed date</th><th>Action</th></tr></thead><tbody id="dash-tbody"></tbody></table></div></div>
+          <div class="panel"><div class="panel-t">Appointment tracker <span class="spill sp-b" id="dash-ts">—</span></div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>URPN</th><th>Address No</th><th>Resident</th><th>Work type</th><th>Access code</th><th>Status</th><th>Confirmed date</th><th>Action</th></tr></thead><tbody id="dash-tbody"></tbody></table></div></div>
           <div class="panel" id="def-dash-panel" style="display:none"><div class="panel-t">Open issues <span class="spill sp-r" id="def-count-pill">0</span></div><div id="def-dash-list"></div></div>
         </div>
       </div>
@@ -442,14 +442,14 @@
         <div class="pg-hdr"><div><div class="pg-title">Upload Pre Works schedule</div><div class="pg-sub">Upload Excel — unique access codes and QR codes generated per flat</div></div><button class="btn btn-o" onclick="bNav(1)"><i class="ti ti-arrow-left"></i> Back to dashboard</button></div>
         <div class="panel">
           <div class="panel-t">Step 1 — Upload Excel (.xlsx)</div>
-          <div class="upload-z" id="upload-zone"><input type="file" accept=".xlsx,.xls,.csv" onchange="handleFile(event)"/><i class="ti ti-file-spreadsheet" style="font-size:28px;display:block;margin:0 auto 7px;pointer-events:none"></i><div style="pointer-events:none">Click or drag to upload works-schedule.xlsx</div><div style="font-size:11px;margin-top:3px;pointer-events:none">Columns: <strong>Flat, Resident, Work Type, Mobile, Date 1, Date 2, Date 3</strong></div></div>
+          <div class="upload-z" id="upload-zone"><input type="file" accept=".xlsx,.xls,.csv" onchange="handleFile(event)"/><i class="ti ti-file-spreadsheet" style="font-size:28px;display:block;margin:0 auto 7px;pointer-events:none"></i><div style="pointer-events:none">Click or drag to upload works-schedule.xlsx</div><div style="font-size:11px;margin-top:3px;pointer-events:none">Columns: <strong>URPN, Address No, Address, Resident, Work Type, Mobile, Date 1, Date 2, Date 3</strong></div></div>
           <div id="upload-prog" style="display:none"><div style="font-size:12px;color:var(--dgd);margin-bottom:4px" id="prog-lbl">Reading...</div><div class="prog"><div class="prog-f" id="prog-fill"></div></div></div>
           <div class="toast" id="parse-toast" style="display:none"></div>
           <a href="#" onclick="loadDemo();return false" style="font-size:12px;color:var(--dj);display:block;margin-top:8px">Or load the demo schedule →</a>
         </div>
         <div class="panel">
           <div class="panel-t">Step 2 — Review entries</div>
-          <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Flat</th><th>Resident</th><th>Work type</th><th>Access code</th><th>Slots</th><th></th></tr></thead><tbody id="entry-tbody"><tr><td colspan="6" style="text-align:center;color:var(--dgd);padding:16px">Upload a file or load the demo</td></tr></tbody></table></div>
+          <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>URPN</th><th>Address No</th><th>Address</th><th>Resident</th><th>Work type</th><th>Access code</th><th>Slots</th><th></th></tr></thead><tbody id="entry-tbody"><tr><td colspan="8" style="text-align:center;color:var(--dgd);padding:16px">Upload a file or load the demo</td></tr></tbody></table></div>
           <button class="btn btn-o btn-sm" onclick="addEntry()" style="margin-top:8px"><i class="ti ti-plus"></i> Add flat</button>
         </div>
         <div class="panel">
