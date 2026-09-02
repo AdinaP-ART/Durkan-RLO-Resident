@@ -34,11 +34,11 @@ const RLO_CODES = {
   'ALANNAH-2025':{ name: 'Alannah Kelly-Forbes',  role: 'RLO' },
 };
 const DEMO_SCHEDULE = [
-  { flat:'Flat 14', resident:'Sarah Ahmed',  workType:'Pre Works', accessCode:'DRK-F14-2847', mobile:'', slots:['Mon 13 Jul','Tue 14 Jul','Wed 15 Jul','Thu 16 Jul'], status:'pending', confirmedDate:'', locked:false, contactLog:[] },
-  { flat:'Flat 9',  resident:'James Obi',    workType:'Pre Works', accessCode:'DRK-F09-5531', mobile:'', slots:['Mon 13 Jul','Tue 14 Jul','Wed 15 Jul','Thu 16 Jul'], status:'pending', confirmedDate:'', locked:false, contactLog:[] },
-  { flat:'Flat 21', resident:'Aisha Patel',  workType:'Pre Works', accessCode:'DRK-F21-7762', mobile:'', slots:['Mon 13 Jul','Tue 14 Jul','Wed 15 Jul','Thu 16 Jul'], status:'pending', confirmedDate:'', locked:false, contactLog:[] },
-  { flat:'Flat 3',  resident:'Unconfirmed',  workType:'Pre Works', accessCode:'DRK-F03-4421', mobile:'', slots:['Mon 13 Jul','Tue 14 Jul','Wed 15 Jul','Thu 16 Jul'],             status:'pending', confirmedDate:'', locked:false, contactLog:[] },
-  { flat:'Flat 7',  resident:'Maria Santos', workType:'Pre Works', accessCode:'DRK-F07-8813', mobile:'', slots:['Mon 13 Jul','Tue 14 Jul','Wed 15 Jul','Thu 16 Jul'],             status:'pending', confirmedDate:'', locked:false, contactLog:[] },
+  { urpn:'HOS014001', flat:'Flat 14', address:'14 Grove Road, London, N5 2AB', resident:'Sarah Ahmed',  workType:'Pre Works', accessCode:'DRK-F14-2847', mobile:'', slots:['Mon 13 Jul','Tue 14 Jul','Wed 15 Jul','Thu 16 Jul'], status:'pending', confirmedDate:'', locked:false, contactLog:[] },
+  { urpn:'LXF003009', flat:'Flat 9',  address:'9 Elm Street, London, N5 2AC',  resident:'James Obi',    workType:'Pre Works', accessCode:'DRK-F09-5531', mobile:'', slots:['Mon 13 Jul','Tue 14 Jul','Wed 15 Jul','Thu 16 Jul'], status:'pending', confirmedDate:'', locked:false, contactLog:[] },
+  { urpn:'LXF003021', flat:'Flat 21', address:'21 Elm Street, London, N5 2AC', resident:'Aisha Patel',  workType:'Pre Works', accessCode:'DRK-F21-7762', mobile:'', slots:['Mon 13 Jul','Tue 14 Jul','Wed 15 Jul','Thu 16 Jul'], status:'pending', confirmedDate:'', locked:false, contactLog:[] },
+  { urpn:'HOS014003', flat:'Flat 3',  address:'3 Grove Road, London, N5 2AB',  resident:'Unconfirmed',  workType:'Pre Works', accessCode:'DRK-F03-4421', mobile:'', slots:['Mon 13 Jul','Tue 14 Jul','Wed 15 Jul','Thu 16 Jul'],             status:'pending', confirmedDate:'', locked:false, contactLog:[] },
+  { urpn:'ASH007007', flat:'Flat 7',  address:'7 Ash Close, London, N5 2AD',   resident:'Maria Santos', workType:'Pre Works', accessCode:'DRK-F07-8813', mobile:'', slots:['Mon 13 Jul','Tue 14 Jul','Wed 15 Jul','Thu 16 Jul'],             status:'pending', confirmedDate:'', locked:false, contactLog:[] },
 ];
 // Letter template (from Durkan's standard R00_001 template)
 const LETTER_TEMPLATE = {
