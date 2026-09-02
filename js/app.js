@@ -282,12 +282,12 @@ function updateNotifBadge() {
 /* ============================================================
    UTILITY
 ============================================================ */
-function genCode(flatOrUrpn) {
-  // Prefer a clean alphanumeric base from a URPN if one looks present (letters+digits, 8+ chars);
+function genCode(flatOrUprn) {
+  // Prefer a clean alphanumeric base from a UPRN if one looks present (letters+digits, 8+ chars);
   // otherwise fall back to pulling digits out of a flat/address name.
-  const raw = (flatOrUrpn || '').trim();
-  const looksLikeUrpn = /^[A-Za-z0-9]{6,}$/.test(raw.replace(/\s/g,''));
-  const base = looksLikeUrpn ? raw.replace(/\s/g,'').slice(-6).toUpperCase() : raw.replace(/\D/g,'').padStart(2,'0');
+  const raw = (flatOrUprn || '').trim();
+  const looksLikeUprn = /^[A-Za-z0-9]{6,}$/.test(raw.replace(/\s/g,''));
+  const base = looksLikeUprn ? raw.replace(/\s/g,'').slice(-6).toUpperCase() : raw.replace(/\D/g,'').padStart(2,'0');
   return `DRK-${base}-${Math.floor(1000+Math.random()*9000)}`;
 }
 function showToast(id, msg, cls='t-j', dur=3500) {
@@ -340,19 +340,19 @@ function handleFile(evt) {
 }
 
 function parseRows(rows, filename) {
-  // URPN is the true unique reference for a property — match on that first.
-  // If a row has no URPN (e.g. quick manual entries), fall back to matching
+  // UPRN is the true unique reference for a property — match on that first.
+  // If a row has no UPRN (e.g. quick manual entries), fall back to matching
   // on Address No + Address together, so different roads don't collide.
   const norm = s => (s || '').replace(/\s+/g, '').toLowerCase();
   const parsed = rows.map(r => {
-    const urpn = getCol(r,'URPN','Urpn','PropertyRef','Reference');
+    const uprn = getCol(r,'UPRN','Uprn','URPN','PropertyRef','Reference');
     const flat = getCol(r,'AddressNo','Address No','Flat','FlatNo','Unit');
     const address = getCol(r,'Address','FullAddress','PostalAddress','Address1','RestOfAddress');
-    const existing = urpn
-      ? db.schedule.find(e => e.urpn && norm(e.urpn) === norm(urpn))
+    const existing = uprn
+      ? db.schedule.find(e => e.uprn && norm(e.uprn) === norm(uprn))
       : db.schedule.find(e => norm(e.flat) === norm(flat) && norm(e.address||'') === norm(address));
     return {
-      urpn, flat, address,
+      uprn, flat, address,
       resident:  getCol(r,'Resident','ResidentName','Name','Tenant'),
       workType:  getCol(r,'WorkType','Work Type','Work','Type','Job'),
       mobile:    getCol(r,'Mobile','MobileNumber','Mobile Number','Phone','Tel','Contact'),
@@ -366,7 +366,7 @@ function parseRows(rows, filename) {
     };
   }).filter(r => r.flat);
   if (!parsed.length) { showToast('parse-toast','No valid rows found. Check column headers.','t-r'); return; }
-  parsed.forEach(e => { if (!e.accessCode) e.accessCode = genCode(e.urpn || e.flat); });
+  parsed.forEach(e => { if (!e.accessCode) e.accessCode = genCode(e.uprn || e.flat); });
   db.schedule = parsed;
   renderEntryTable();
   showToast('parse-toast',`✓ ${filename} — ${parsed.length} entries loaded. Click Publish to save.`,'t-g',5000);
@@ -382,7 +382,7 @@ function renderEntryTable() {
   const tbody = document.getElementById('entry-tbody'); if (!tbody) return;
   tbody.innerHTML = db.schedule.map((e,i) => `
     <tr>
-      <td><input style="width:90px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.urpn||''}" placeholder="URPN" onchange="db.schedule[${i}].urpn=this.value"/></td>
+      <td><input style="width:90px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.uprn||''}" placeholder="UPRN" onchange="db.schedule[${i}].uprn=this.value"/></td>
       <td><input style="width:110px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.flat}" onchange="db.schedule[${i}].flat=this.value"/></td>
       <td><input style="width:150px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.address||''}" placeholder="e.g. 14 Grove Road, N5 2AB" onchange="db.schedule[${i}].address=this.value"/></td>
       <td><input style="width:100px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.resident}" onchange="db.schedule[${i}].resident=this.value"/></td>
@@ -394,7 +394,7 @@ function renderEntryTable() {
 }
 
 function addEntry() {
-  db.schedule.push({urpn:'',flat:'Address',address:'',resident:'',workType:'Pre Works',accessCode:genCode('Address'),slots:[],status:'pending',confirmedDate:'',locked:false,contactLog:[]});
+  db.schedule.push({uprn:'',flat:'Address',address:'',resident:'',workType:'Pre Works',accessCode:genCode('Address'),slots:[],status:'pending',confirmedDate:'',locked:false,contactLog:[]});
   renderEntryTable();
 }
 
@@ -415,7 +415,7 @@ async function publishSchedule() {
 function scheduleRowToLocal(r) {
   return {
     id: r.id,
-    urpn: r.urpn || '',
+    uprn: r.uprn || '',
     flat: r.flat,
     address: r.address || '',
     resident: r.resident,
@@ -432,7 +432,7 @@ function scheduleRowToLocal(r) {
 
 function scheduleRowToDb(e) {
   return {
-    urpn: e.urpn || null,
+    uprn: e.uprn || null,
     flat: e.flat,
     address: e.address || null,
     resident: e.resident,
@@ -779,7 +779,7 @@ function renderDashboard() {
     const workElBtn = `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openWorkElements(${i})"><i class="ti ti-list-check"></i> Work elements${elCount?' ('+elCount+')':''}</button>`;
     const lettersBtn = `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openFlatLetters(${i})"><i class="ti ti-mail-opened"></i> Letters</button>`;
     return `<tr style="${rowBg}">
-      <td style="font-size:10px;color:var(--dgd);font-family:monospace">${e.urpn||'—'}</td><td><strong>${e.flat}</strong></td><td>${e.resident}<div style="margin-top:3px">${letterBadgesFor(e.contactLog)}</div></td><td>${e.workType}</td>
+      <td style="font-size:10px;color:var(--dgd);font-family:monospace">${e.uprn||'—'}</td><td><strong>${e.flat}</strong></td><td>${e.resident}<div style="margin-top:3px">${letterBadgesFor(e.contactLog)}</div></td><td>${e.workType}</td>
       <td><span class="code-chip">${e.accessCode}</span></td>
       <td>${sPill[e.status]||''}</td>
       <td>${e.confirmedDate?`<strong style="color:var(--dj)">${e.confirmedDate}</strong>`:`<span style="color:var(--dg)">—</span>`}</td>
@@ -824,7 +824,7 @@ function downloadDashboardCSV() {
   if (!db.schedule.length) { showToast('dash-download-toast', 'No schedule to export yet.', 't-r'); return; }
 
   const headers = [
-    'URPN/Access Code','Flat','Resident','Mobile','Overall Status','Confirmed Date',
+    'UPRN/Access Code','Flat','Resident','Mobile','Overall Status','Confirmed Date',
     'Contact Attempts','Work Element','Element Status','Intro Letter Sent',
     'Survey Booked','Survey Completed','Element Start Date',
     '1st No Access Letter Sent','2nd No Access Letter Sent','3rd No Access Letter Sent'
