@@ -192,9 +192,10 @@ async function resLogin(auto = false) {
   const match = demo || sched;
   if (match) {
     db.currentResident = { flat: match.flat, resident: match.resident, accessCode: raw };
+    const locationLabel = match.address ? match.address.split(',')[0] : 'Highbury Gardens';
     document.getElementById('r-hello').textContent  = 'Hello, ' + match.resident.split(' ')[0];
-    document.getElementById('r-addr').textContent   = match.flat + ' · Highbury Gardens';
-    document.getElementById('r-appts-hdr').textContent = match.flat + ' · Highbury Gardens';
+    document.getElementById('r-addr').textContent   = match.flat + ' · ' + locationLabel;
+    document.getElementById('r-appts-hdr').textContent = match.flat + ' · ' + locationLabel;
     const chip = document.getElementById('res-chip');
     chip.textContent = '🔒 ' + match.flat; chip.style.display = 'inline-block';
     await loadReadUpdatesForResident();
@@ -281,9 +282,13 @@ function updateNotifBadge() {
 /* ============================================================
    UTILITY
 ============================================================ */
-function genCode(flat) {
-  const n = flat.replace(/\D/g,'').padStart(2,'0');
-  return `DRK-F${n}-${Math.floor(1000+Math.random()*9000)}`;
+function genCode(flatOrUrpn) {
+  // Prefer a clean alphanumeric base from a URPN if one looks present (letters+digits, 8+ chars);
+  // otherwise fall back to pulling digits out of a flat/address name.
+  const raw = (flatOrUrpn || '').trim();
+  const looksLikeUrpn = /^[A-Za-z0-9]{6,}$/.test(raw.replace(/\s/g,''));
+  const base = looksLikeUrpn ? raw.replace(/\s/g,'').slice(-6).toUpperCase() : raw.replace(/\D/g,'').padStart(2,'0');
+  return `DRK-${base}-${Math.floor(1000+Math.random()*9000)}`;
 }
 function showToast(id, msg, cls='t-j', dur=3500) {
   const el = document.getElementById(id); if (!el) return;
@@ -335,11 +340,19 @@ function handleFile(evt) {
 }
 
 function parseRows(rows, filename) {
+  // URPN is the true unique reference for a property — match on that first.
+  // If a row has no URPN (e.g. quick manual entries), fall back to matching
+  // on Address No + Address together, so different roads don't collide.
+  const norm = s => (s || '').replace(/\s+/g, '').toLowerCase();
   const parsed = rows.map(r => {
-    const flat = getCol(r,'Flat','FlatNo','Unit');
-    const existing = db.schedule.find(e => e.flat === flat);
+    const urpn = getCol(r,'URPN','Urpn','PropertyRef','Reference');
+    const flat = getCol(r,'AddressNo','Address No','Flat','FlatNo','Unit');
+    const address = getCol(r,'Address','FullAddress','PostalAddress','Address1','RestOfAddress');
+    const existing = urpn
+      ? db.schedule.find(e => e.urpn && norm(e.urpn) === norm(urpn))
+      : db.schedule.find(e => norm(e.flat) === norm(flat) && norm(e.address||'') === norm(address));
     return {
-      flat,
+      urpn, flat, address,
       resident:  getCol(r,'Resident','ResidentName','Name','Tenant'),
       workType:  getCol(r,'WorkType','Work Type','Work','Type','Job'),
       mobile:    getCol(r,'Mobile','MobileNumber','Mobile Number','Phone','Tel','Contact'),
@@ -353,7 +366,7 @@ function parseRows(rows, filename) {
     };
   }).filter(r => r.flat);
   if (!parsed.length) { showToast('parse-toast','No valid rows found. Check column headers.','t-r'); return; }
-  parsed.forEach(e => { if (!e.accessCode) e.accessCode = genCode(e.flat); });
+  parsed.forEach(e => { if (!e.accessCode) e.accessCode = genCode(e.urpn || e.flat); });
   db.schedule = parsed;
   renderEntryTable();
   showToast('parse-toast',`✓ ${filename} — ${parsed.length} entries loaded. Click Publish to save.`,'t-g',5000);
@@ -369,7 +382,9 @@ function renderEntryTable() {
   const tbody = document.getElementById('entry-tbody'); if (!tbody) return;
   tbody.innerHTML = db.schedule.map((e,i) => `
     <tr>
-      <td><input style="width:70px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.flat}" onchange="db.schedule[${i}].flat=this.value"/></td>
+      <td><input style="width:90px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.urpn||''}" placeholder="URPN" onchange="db.schedule[${i}].urpn=this.value"/></td>
+      <td><input style="width:110px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.flat}" onchange="db.schedule[${i}].flat=this.value"/></td>
+      <td><input style="width:150px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.address||''}" placeholder="e.g. 14 Grove Road, N5 2AB" onchange="db.schedule[${i}].address=this.value"/></td>
       <td><input style="width:100px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.resident}" onchange="db.schedule[${i}].resident=this.value"/></td>
       <td><input style="width:110px;border:1px solid var(--dg);border-radius:5px;padding:3px 6px;font-size:11px" value="${e.workType}" onchange="db.schedule[${i}].workType=this.value"/></td>
       <td><span class="code-chip">${e.accessCode}</span></td>
@@ -379,7 +394,7 @@ function renderEntryTable() {
 }
 
 function addEntry() {
-  db.schedule.push({flat:'Flat',resident:'',workType:'Pre Works',accessCode:genCode('Flat'),slots:[],status:'pending',confirmedDate:'',locked:false,contactLog:[]});
+  db.schedule.push({urpn:'',flat:'Address',address:'',resident:'',workType:'Pre Works',accessCode:genCode('Address'),slots:[],status:'pending',confirmedDate:'',locked:false,contactLog:[]});
   renderEntryTable();
 }
 
@@ -400,7 +415,9 @@ async function publishSchedule() {
 function scheduleRowToLocal(r) {
   return {
     id: r.id,
+    urpn: r.urpn || '',
     flat: r.flat,
+    address: r.address || '',
     resident: r.resident,
     workType: r.work_type,
     mobile: r.mobile || '',
@@ -415,7 +432,9 @@ function scheduleRowToLocal(r) {
 
 function scheduleRowToDb(e) {
   return {
+    urpn: e.urpn || null,
     flat: e.flat,
+    address: e.address || null,
     resident: e.resident,
     work_type: e.workType,
     mobile: e.mobile || null,
@@ -642,7 +661,7 @@ function buildLetterBody(e, qrUrl) {
     <div style="margin-bottom:20px;font-size:13px">
       <strong>${e.resident}</strong><br>
       ${e.flat}<br>
-      Highbury Gardens
+      ${e.address || 'Highbury Gardens'}
     </div>
 
     <div style="margin-bottom:16px"><strong>Dear ${e.resident.split(' ')[0]},</strong></div>
@@ -665,7 +684,7 @@ function buildLetterBody(e, qrUrl) {
         <div style="flex:1;min-width:200px">
           <div style="font-size:11px;color:#666;margin-bottom:6px">OR enter this code manually:</div>
           <div style="font-size:22px;font-weight:700;font-family:monospace;color:#002856;background:#fff;border:1.5px solid #D9D8D6;border-radius:8px;padding:10px 16px;letter-spacing:3px;display:inline-block">${e.accessCode}</div>
-          <div style="font-size:11px;color:#666;margin-top:6px">${e.flat} · Highbury Gardens</div>
+          <div style="font-size:11px;color:#666;margin-top:6px">${e.flat}${e.address?' · '+e.address:' · Highbury Gardens'}</div>
         </div>
       </div>
       <div style="margin-top:14px;font-size:12px;color:#444">
@@ -760,7 +779,7 @@ function renderDashboard() {
     const workElBtn = `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openWorkElements(${i})"><i class="ti ti-list-check"></i> Work elements${elCount?' ('+elCount+')':''}</button>`;
     const lettersBtn = `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openFlatLetters(${i})"><i class="ti ti-mail-opened"></i> Letters</button>`;
     return `<tr style="${rowBg}">
-      <td><strong>${e.flat}</strong></td><td>${e.resident}<div style="margin-top:3px">${letterBadgesFor(e.contactLog)}</div></td><td>${e.workType}</td>
+      <td style="font-size:10px;color:var(--dgd);font-family:monospace">${e.urpn||'—'}</td><td><strong>${e.flat}</strong></td><td>${e.resident}<div style="margin-top:3px">${letterBadgesFor(e.contactLog)}</div></td><td>${e.workType}</td>
       <td><span class="code-chip">${e.accessCode}</span></td>
       <td>${sPill[e.status]||''}</td>
       <td>${e.confirmedDate?`<strong style="color:var(--dj)">${e.confirmedDate}</strong>`:`<span style="color:var(--dg)">—</span>`}</td>
@@ -1780,8 +1799,14 @@ async function renderMyLetters() {
   if (!body || !db.currentResident) return;
   body.innerHTML = '<div class="empty-msg">Loading...</div>';
   try {
-    const { data, error } = await sb.from('letters_sent').select('*').eq('flat', db.currentResident.flat).order('created_at', { ascending: false });
+    // Fetch all and match flat names loosely (trimmed, case-insensitive) —
+    // guards against small formatting differences between how a flat name
+    // was typed at upload time vs how it's stored on login.
+    const { data: allLetters, error } = await sb.from('letters_sent').select('*').order('created_at', { ascending: false });
     if (error) { console.warn('Load my letters failed:', error.message); body.innerHTML = '<div class="empty-msg">Could not load letters — check your connection.</div>'; return; }
+    const norm = s => (s || '').replace(/\s+/g, '').toLowerCase();
+    const myFlat = norm(db.currentResident.flat);
+    const data = (allLetters || []).filter(l => norm(l.flat) === myFlat);
     if (!data.length) { body.innerHTML = '<div class="empty-msg">No letters yet. Anything Durkan sends you will appear here.</div>'; return; }
     body.innerHTML = data.map(l => `
       <div class="faq-item" onclick="toggleFaq(this)">
@@ -2172,7 +2197,7 @@ async function generateMandatoryLetter() {
 
   const residents = checked.map(i => {
     const e = db.schedule[i];
-    return { name: e.resident, flat: e.flat, address: 'Highbury Gardens' };
+    return { name: e.resident, flat: e.flat, address: e.address || 'Highbury Gardens' };
   });
 
   const html = buildMandatoryLettersBatchHTML(catKey, cat, varKey, variant, stage, residents, dateVal);
@@ -2189,7 +2214,7 @@ async function generateMandatoryLetter() {
     logLetterToContactLog(i, cat, variant, stage);
     if (catKey === 'access' && stage) stampWorkElementAccessLetter(i, varKey, stage);
 
-    const resident = { name: e.resident, flat: e.flat, address: 'Highbury Gardens' };
+    const resident = { name: e.resident, flat: e.flat, address: e.address || 'Highbury Gardens' };
     const bodyHtml = buildMandatoryLetterPage(catKey, cat, varKey, variant, stage, resident, dateVal);
     const result = await saveLetterSent(e, catKey, varKey, stage, title, bodyHtml, sendSmsLink ? 'SMS' : 'Print');
 
