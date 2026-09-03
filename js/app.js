@@ -792,7 +792,7 @@ function renderDashboard() {
     const workElBtn = `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openWorkElements(${i})"><i class="ti ti-list-check"></i> Work elements${elCount?' ('+elCount+')':''}</button>`;
     const lettersBtn = `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openFlatLetters(${i})"><i class="ti ti-mail-opened"></i> Letters</button>`;
     return `<tr style="${rowBg}">
-      <td style="font-size:10px;color:var(--dgd);font-family:monospace">${e.uprn||'—'}</td><td><strong>${e.flat}</strong></td><td>${e.resident}<div style="margin-top:3px">${letterBadgesFor(e.contactLog)}</div></td><td>${e.workType}</td>
+      <td style="font-size:10px;color:var(--dgd);font-family:monospace">${e.uprn||'—'}</td><td><strong>${e.flat}</strong></td><td>${e.resident}${e.mobile?`<div style="font-size:11px;color:var(--dj);margin-top:2px"><a href="tel:${e.mobile.replace(/\s/g,'')}" style="color:var(--dj);text-decoration:none">${e.mobile}</a></div>`:''}<div style="margin-top:3px">${letterBadgesFor(e.contactLog)}</div></td><td>${e.workType}</td>
       <td><span class="code-chip">${e.accessCode}</span></td>
       <td>${sPill[e.status]||''}</td>
       <td>${e.confirmedDate?`<strong style="color:var(--dj)">${e.confirmedDate}</strong>`:`<span style="color:var(--dg)">—</span>`}</td>
@@ -913,7 +913,7 @@ function handleDuringFile(evt) {
 
 function parseDuringRows(rows, filename) {
   const parsed = rows.map(r => ({
-    flat:      getCol(r,'Flat','FlatNo','Unit'),
+    flat:      getCol(r,'AddressNo','Address No','Flat','FlatNo','Unit'),
     resident:  getCol(r,'Resident','ResidentName','Name'),
     trade:     getCol(r,'Trade','Works','Work Type','Job','Description'),
     timeframe: getCol(r,'Timeframe','Time','AM/PM','Period')||'AM',
@@ -2219,8 +2219,9 @@ async function generateMandatoryLetter() {
   win.document.close();
 
   const title = variant.title || variant.subject || '';
-  let smsCount = 0, savedCount = 0;
+  let smsSent = 0, smsSkippedNoMobile = 0, smsFailed = 0, savedCount = 0;
   const saveErrors = [];
+  const smsFailReasons = [];
 
   for (const i of checked) {
     const e = db.schedule[i];
@@ -2233,10 +2234,19 @@ async function generateMandatoryLetter() {
 
     if (result.id) {
       savedCount++;
-      if (sendSmsLink && e.mobile) {
-        const link = `${LETTER_TEMPLATE.appUrl}?code=${e.accessCode}&letter=${result.id}`;
-        sendSMS(e.mobile, `Hi ${e.resident.split(' ')[0]}, Durkan has sent you a new letter regarding your ${variant.label}. View it here: ${link}`);
-        smsCount++;
+      if (sendSmsLink) {
+        if (!e.mobile) {
+          smsSkippedNoMobile++;
+        } else {
+          const link = `${LETTER_TEMPLATE.appUrl}?code=${e.accessCode}&letter=${result.id}`;
+          const smsResult = await sendSMS(e.mobile, `Hi ${e.resident.split(' ')[0]}, Durkan has sent you a new letter regarding your ${variant.label}. View it here: ${link}`);
+          if (smsResult && smsResult.success) {
+            smsSent++;
+          } else {
+            smsFailed++;
+            smsFailReasons.push(`${e.flat}: ${(smsResult && smsResult.error) || 'unknown error'}`);
+          }
+        }
       }
     } else {
       saveErrors.push(`${e.flat}: ${result.error || 'unknown error'}`);
@@ -2247,8 +2257,14 @@ async function generateMandatoryLetter() {
 
   if (saveErrors.length) {
     showToast(toast, `⚠ Letter opened, but ${saveErrors.length} of ${checked.length} could not be recorded — ${saveErrors[0]}`, 't-r', 9000);
+  } else if (sendSmsLink && (smsFailed || smsSkippedNoMobile)) {
+    const parts = [];
+    if (smsSent) parts.push(`${smsSent} texted`);
+    if (smsSkippedNoMobile) parts.push(`${smsSkippedNoMobile} skipped (no mobile on file)`);
+    if (smsFailed) parts.push(`${smsFailed} failed to send (${smsFailReasons[0]})`);
+    showToast(toast, `✓ Letter opened, ${savedCount} recorded. SMS: ${parts.join(', ')}.`, 't-r', 10000);
   } else {
-    showToast(toast, `✓ Letter opened — ${checked.length} page${checked.length!==1?'s':''}, ${savedCount} recorded.${sendSmsLink ? ` ${smsCount} resident${smsCount!==1?'s':''} texted a link.` : ''}`, 't-g', 6000);
+    showToast(toast, `✓ Letter opened — ${checked.length} page${checked.length!==1?'s':''}, ${savedCount} recorded.${sendSmsLink ? ` ${smsSent} resident${smsSent!==1?'s':''} texted a link.` : ''}`, 't-g', 6000);
   }
 }
 
