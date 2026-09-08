@@ -56,6 +56,7 @@ const LETTER_TEMPLATE = {
   appUrl:    'https://durkan-rlo-resident.vercel.app',
 };
 const WORK_ELEMENT_TYPES = ['Kitchen', 'Bathroom', 'Wet Room', 'Asbestos Survey', 'Fire Door', 'Window & Door', 'Front Entrance Door', 'Other'];
+const WORK_TYPE_OPTIONS = ['Kitchen only', 'Bathroom only', 'K&B', 'K&B additional WC', 'Communal kitchen', 'K&B/ wetroom/ additional WC', 'K&Wet room', 'Wet room only'];
 
 const FB_QUESTIONS = [
   'Overall satisfaction','Professionalism of team',
