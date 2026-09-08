@@ -95,12 +95,10 @@
             <div class="mc" onclick="rNav(10)"><div class="mi" style="background:#e0f2ef;color:#008C79"><i class="ti ti-book"></i></div><div style="flex:1"><div class="mi-t">Resident Information Pack</div><div class="mi-s">Read before your works begin</div></div></div>
             <div class="mc" onclick="rNav(2)"><div class="mi mi-b"><i class="ti ti-calendar"></i></div><div style="flex:1"><div class="mi-t">Choose your works start date</div><div class="mi-s" id="r-appt-sub">No appointments yet</div></div><span class="mc-pill pill-b" id="r-appt-n">0</span></div>
             <div class="mc" onclick="rNav(7)"><div class="mi mi-j"><i class="ti ti-hard-hat"></i></div><div style="flex:1"><div class="mi-t">During Works</div><div class="mi-s" id="r-during-sub">Tomorrow's works schedule</div></div><span class="mc-pill pill-j" id="r-during-n" style="display:none">New</span></div>
-            <div class="mc" onclick="rNav(8)"><div class="mi" style="background:#fdeef0;color:#c2185b"><i class="ti ti-photo"></i></div><div style="flex:1"><div class="mi-t">Examples of finished work</div><div class="mi-s">See completed kitchens &amp; bathrooms</div></div></div>
+            <div class="mc" onclick="rNav(8)"><div class="mi" style="background:#fdeef0;color:#c2185b"><i class="ti ti-photo"></i></div><div style="flex:1"><div class="mi-t">Examples of Completed Work</div><div class="mi-s">See what past projects look like</div></div></div>
             <div class="mc" onclick="rNav(9)"><div class="mi" style="background:#eef3fc;color:#1d4ed8"><i class="ti ti-speakerphone"></i></div><div style="flex:1"><div class="mi-t">Project updates &amp; events</div><div class="mi-s" id="r-updates-sub">Site news, events &amp; job opportunities</div></div><span class="mc-pill pill-j" id="r-updates-n" style="display:none">New</span></div>
             <div class="mc" onclick="rNav(12)"><div class="mi" style="background:#f3e8fd;color:#7c3aed"><i class="ti ti-mail-opened"></i></div><div style="flex:1"><div class="mi-t">My Letters</div><div class="mi-s">Letters Durkan has sent you</div></div></div>
-            <div class="mc" onclick="rNav(3)"><div class="mi mi-r"><i class="ti ti-alert-triangle"></i></div><div style="flex:1"><div class="mi-t">Report an issue</div><div class="mi-s" id="r-def-sub">Report a problem in your home</div></div><span class="mc-pill pill-r" id="r-def-n" style="display:none"></span></div>
-            <div class="mc" onclick="rNav(4)"><div class="mi mi-a"><i class="ti ti-mail"></i></div><div style="flex:1"><div class="mi-t">Message Durkan</div><div class="mi-s">Contact your RLO</div></div></div>
-            <div class="mc" onclick="rNav(5)"><div class="mi" style="background:#eef7f5;color:#008C79"><i class="ti ti-help"></i></div><div style="flex:1"><div class="mi-t">FAQ &amp; Guides</div><div class="mi-s">Common questions answered</div></div></div>
+            <div class="mc" onclick="rNav(4)"><div class="mi mi-a"><i class="ti ti-mail"></i></div><div style="flex:1"><div class="mi-t">Message &amp; Report an Issue</div><div class="mi-s" id="r-def-sub">Contact your RLO or report a problem</div></div><span class="mc-pill pill-r" id="r-def-n" style="display:none"></span></div>
             <div class="mc" onclick="rNav(6)"><div class="mi mi-j"><i class="ti ti-star"></i></div><div style="flex:1"><div class="mi-t">Satisfaction survey</div><div class="mi-s">Share your feedback</div></div></div>
             <div class="mc" onclick="rNav(11)"><div class="mi" style="background:#fef3e2;color:#b45309"><i class="ti ti-tool"></i></div><div style="flex:1"><div class="mi-t">Maintenance &amp; User Guide</div><div class="mi-s">Looking after your new kitchen &amp; bathroom</div></div></div>
           </div>
@@ -108,7 +106,7 @@
             <button class="pnb on"><i class="ti ti-home"></i><span>Home</span></button>
             <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
             <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
-            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
             <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
           </nav>
         </div></div></div>
@@ -125,22 +123,23 @@
             <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
             <button class="pnb on"><i class="ti ti-calendar"></i><span>Visits</span></button>
             <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
-            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
             <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
           </nav>
         </div></div></div>
       </div>
 
       <!-- R3: ISSUES -->
-      <div id="rp-defects" class="page">
+      <!-- R4: MESSAGE & REPORT AN ISSUE (merged) -->
+      <div id="rp-message" class="page">
         <div class="phone-wrap"><div class="phone"><div class="phone-in">
           <div class="notch"><div class="nb"></div></div>
-          <div class="ph-hdr"><div class="ph-eye">Issues</div><div class="ph-h sm">Report an issue</div><div class="ph-s">We track every issue to completion</div></div>
+          <div class="ph-hdr"><div class="ph-eye">Contact</div><div class="ph-h sm">Message &amp; Report an Issue</div><div class="ph-s">RLO responds within 2 working days</div></div>
           <div class="jbar"></div>
           <div class="ph-body">
+            <div class="ph-sect">Report an issue</div>
             <div id="r-def-list"></div>
             <div id="r-def-form" style="display:none">
-              <div class="ph-sect">New issue report</div>
               <label class="flbl">Describe the issue</label>
               <textarea class="field" id="r-def-desc" placeholder="e.g. Kitchen tap dripping constantly..." rows="3"></textarea>
               <label class="flbl">Location</label>
@@ -153,25 +152,7 @@
               <button class="vbtn blue" onclick="document.getElementById('r-def-form').style.display='none';document.getElementById('r-def-list').style.display='block'" style="margin-top:5px">Cancel</button>
               <div class="ph-toast" id="def-toast"></div>
             </div>
-          </div>
-          <nav class="pnav">
-            <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
-            <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
-            <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
-            <button class="pnb on"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
-            <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
-          </nav>
-        </div></div></div>
-      </div>
-
-      <!-- R4: MESSAGE -->
-      <div id="rp-message" class="page">
-        <div class="phone-wrap"><div class="phone"><div class="phone-in">
-          <div class="notch"><div class="nb"></div></div>
-          <div class="ph-hdr"><div class="ph-eye">Contact</div><div class="ph-h sm">Message Durkan</div><div class="ph-s">RLO responds within 2 working days</div></div>
-          <div class="jbar"></div>
-          <div class="ph-body">
-            <div class="ph-sect">Message your RLO</div>
+            <div class="ph-sect" style="margin-top:14px">Message your RLO</div>
             <textarea class="field" id="r-msg" placeholder="e.g. Can we rearrange my survey?" rows="4"></textarea>
             <button class="vbtn" onclick="sendRMsg()">Send message</button>
             <div class="ph-sect" style="margin-top:14px">Emergency</div>
@@ -183,31 +164,8 @@
             <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
             <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
             <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
-            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
-            <button class="pnb on"><i class="ti ti-mail"></i><span>Message</span></button>
-          </nav>
-        </div></div></div>
-      </div>
-
-      <!-- R5: FAQ -->
-      <div id="rp-faq" class="page">
-        <div class="phone-wrap"><div class="phone"><div class="phone-in">
-          <div class="notch"><div class="nb"></div></div>
-          <div class="ph-hdr"><div class="ph-eye">Help</div><div class="ph-h sm">FAQ &amp; Guides</div><div class="ph-s">Highbury Gardens</div></div>
-          <div class="jbar"></div>
-          <div class="ph-body">
-            <div class="ph-sect">Common questions</div>
-            <div class="faq-item" onclick="toggleFaq(this)"><div class="faq-q">How do I log in?</div><div class="faq-a">Scan the QR code on your welcome letter with your phone camera — it will log you in automatically. Or visit the app link and enter your access code.</div></div>
-            <div class="faq-item" onclick="toggleFaq(this)"><div class="faq-q">How do I confirm my appointment?</div><div class="faq-a">Go to Pre Works Visits and select your preferred date. Once confirmed it is locked — contact your RLO to make changes.</div></div>
-            <div class="faq-item" onclick="toggleFaq(this)"><div class="faq-q">What are site working hours?</div><div class="faq-a">Mon–Fri 8:00am–5:00pm. Out-of-hours work will be notified in advance.</div></div>
-            <div class="faq-item" onclick="toggleFaq(this)"><div class="faq-q">What if none of the dates suit me?</div><div class="faq-a">Select "None of the above" — your RLO will arrange alternatives within 48 hours.</div></div>
-          </div>
-          <nav class="pnav">
-            <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
-            <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
-            <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
-            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
-            <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb on" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
           </nav>
         </div></div></div>
       </div>
@@ -231,7 +189,7 @@
             <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
             <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
             <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
-            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
             <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
           </nav>
         </div></div></div>
@@ -248,7 +206,7 @@
             <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
             <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
             <button class="pnb on"><i class="ti ti-hard-hat"></i><span>Works</span></button>
-            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
             <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
           </nav>
         </div></div></div>
@@ -258,7 +216,7 @@
       <div id="rp-colours" class="page">
         <div class="phone-wrap"><div class="phone"><div class="phone-in">
           <div class="notch"><div class="nb"></div></div>
-          <div class="ph-hdr"><div class="ph-eye">Finished work</div><div class="ph-h sm">Examples of finished work</div><div class="ph-s">Completed kitchens &amp; bathrooms from Durkan projects</div></div>
+          <div class="ph-hdr"><div class="ph-eye">Completed work</div><div class="ph-h sm">Examples of Completed Work</div><div class="ph-s">See what past projects look like</div></div>
           <div class="jbar"></div>
           <div class="ph-body" id="r-colours-body">
             <div class="empty-msg">No colour swatch uploaded yet.</div>
@@ -267,7 +225,7 @@
             <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
             <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
             <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
-            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
             <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
           </nav>
         </div></div></div>
@@ -286,7 +244,7 @@
             <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
             <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
             <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
-            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
             <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
           </nav>
         </div></div></div>
@@ -305,7 +263,7 @@
             <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
             <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
             <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
-            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
             <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
           </nav>
         </div></div></div>
@@ -330,7 +288,7 @@
             <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
             <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
             <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
-            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
             <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
           </nav>
         </div></div></div>
@@ -355,7 +313,7 @@
             <button class="pnb" onclick="rNav(1)"><i class="ti ti-home"></i><span>Home</span></button>
             <button class="pnb" onclick="rNav(2)"><i class="ti ti-calendar"></i><span>Visits</span></button>
             <button class="pnb" onclick="rNav(7)"><i class="ti ti-hard-hat"></i><span>Works</span></button>
-            <button class="pnb" onclick="rNav(3)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
+            <button class="pnb" onclick="rNav(4)"><i class="ti ti-alert-triangle"></i><span>Issues</span></button>
             <button class="pnb" onclick="rNav(4)"><i class="ti ti-mail"></i><span>Message</span></button>
           </nav>
         </div></div></div>
@@ -375,7 +333,7 @@
         <option value="1">Dashboard</option>
         <option value="2">Pre Works Schedule</option>
         <option value="3">During Works</option>
-        <option value="8">Finished Work Photos</option>
+        <option value="8">Completed Work Photos</option>
         <option value="9">Updates &amp; Events</option>
         <option value="4">Issues</option>
         <option value="5">Messages</option>
@@ -442,7 +400,7 @@
         <div class="pg-hdr"><div><div class="pg-title">Upload Pre Works schedule</div><div class="pg-sub">Upload Excel — unique access codes and QR codes generated per flat</div></div><button class="btn btn-o" onclick="bNav(1)"><i class="ti ti-arrow-left"></i> Back to dashboard</button></div>
         <div class="panel">
           <div class="panel-t">Step 1 — Upload Excel (.xlsx)</div>
-          <div class="upload-z" id="upload-zone"><input type="file" accept=".xlsx,.xls,.csv" onchange="handleFile(event)"/><i class="ti ti-file-spreadsheet" style="font-size:28px;display:block;margin:0 auto 7px;pointer-events:none"></i><div style="pointer-events:none">Click or drag to upload works-schedule.xlsx</div><div style="font-size:11px;margin-top:3px;pointer-events:none">Columns: <strong>UPRN, Address No, Address, Resident, Work Type, Mobile, Date 1, Date 2, Date 3</strong></div></div>
+          <div class="upload-z" id="upload-zone"><input type="file" accept=".xlsx,.xls,.csv" onchange="handleFile(event)"/><i class="ti ti-file-spreadsheet" style="font-size:28px;display:block;margin:0 auto 7px;pointer-events:none"></i><div style="pointer-events:none">Click or drag to upload works-schedule.xlsx</div><div style="font-size:11px;margin-top:3px;pointer-events:none">Columns: <strong>UPRN, Address No, Address, Resident, Work Type, Mobile, Date 1–8</strong> — type the exact slot text you want residents to see, e.g. "08 Sep AM1", "08 Sep PM2"</div></div>
           <div id="upload-prog" style="display:none"><div style="font-size:12px;color:var(--dgd);margin-bottom:4px" id="prog-lbl">Reading...</div><div class="prog"><div class="prog-f" id="prog-fill"></div></div></div>
           <div class="toast" id="parse-toast" style="display:none"></div>
           <a href="#" onclick="loadDemo();return false" style="font-size:12px;color:var(--dj);display:block;margin-top:8px">Or load the demo schedule →</a>
@@ -514,13 +472,13 @@
 
       <!-- BO-COLOURS: COLOUR SWATCH MANAGEMENT -->
       <div id="bp-colours" class="page">
-        <div class="pg-hdr"><div><div class="pg-title">Examples of finished work</div><div class="pg-sub">Upload photos of completed kitchens and bathrooms for residents to browse</div></div><button class="btn btn-o" onclick="bNav(1)"><i class="ti ti-arrow-left"></i> Back to dashboard</button></div>
+        <div class="pg-hdr"><div><div class="pg-title">Examples of Completed Work</div><div class="pg-sub">Upload photos for residents to browse</div></div><button class="btn btn-o" onclick="bNav(1)"><i class="ti ti-arrow-left"></i> Back to dashboard</button></div>
         <div class="panel">
           <div class="panel-t">Step 1 — Upload photos (you can select several at once)</div>
           <div class="upload-z" id="swatch-upload-zone">
             <input type="file" accept="image/*" multiple onchange="handleSwatchUpload(event)"/>
             <i class="ti ti-palette" style="font-size:28px;display:block;margin:0 auto 7px;pointer-events:none"></i>
-            <div style="pointer-events:none">Click or drag to upload photos of finished work (JPG or PNG — multiple allowed)</div>
+            <div style="pointer-events:none">Click or drag to upload photos (JPG or PNG — multiple allowed)</div>
           </div>
           <div class="toast t-g" id="swatch-toast" style="display:none"></div>
         </div>
@@ -544,7 +502,7 @@
           <label class="flbl">Title</label>
           <input class="field" id="update-title" placeholder="e.g. Scaffolding removal next week / Apprentice opportunities with Durkan"/>
           <label class="flbl">Type</label>
-          <select class="field" id="update-type"><option>Project update</option><option>Event</option><option>Job opportunity</option></select>
+          <select class="field" id="update-type"><option>Project update</option><option>Community Event</option><option>Job opportunity</option><option>Apprenticeship</option><option>Workshop</option></select>
           <label class="flbl">Details</label>
           <textarea class="field" id="update-body" rows="3" placeholder="e.g. Scaffolding on Grove Road will be removed week commencing 23 June. Please be aware of contractor vehicles on site."></textarea>
           <label class="flbl">Date (optional — for events)</label>
