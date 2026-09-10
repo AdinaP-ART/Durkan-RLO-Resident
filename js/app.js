@@ -169,7 +169,13 @@ function bNav(i) {
   buildRloNav(i);
   if (i === 1) renderDashboard();
   if (i === 2) renderEntryTable();
-  if (i === 3) { renderDuringWorksRlo(); document.getElementById('during-review-panel').style.display = duringWorksList.length ? 'block' : 'none'; }
+  if (i === 3) {
+    renderDuringWorksRlo();
+    document.getElementById('during-review-panel').style.display = duringWorksList.length ? 'block' : 'none';
+    populateQuickAddDuringDropdown();
+    const dateField = document.getElementById('qa-during-date');
+    if (dateField && !dateField.value) dateField.value = todayISO();
+  }
   if (i === 4) renderRloDefects();
   if (i === 6) renderReports();
   if (i === 7) renderLettersPage();
@@ -890,6 +896,45 @@ function sendNewSlots(i) {
 /* ============================================================
    DURING WORKS
 ============================================================ */
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatDateNice(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short' });
+}
+
+// Pulls a date value out of an Excel row and returns it as yyyy-mm-dd,
+// handling real Excel date cells, Excel serial numbers, and common text formats.
+function extractDateISO(row, ...keys) {
+  for (const k of keys) {
+    const f = Object.keys(row).find(rk => rk.toLowerCase().replace(/[\s_-]/g,'') === k.toLowerCase().replace(/[\s_-]/g,''));
+    if (f && row[f] !== undefined && row[f] !== '') {
+      const v = row[f];
+      if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+      if (typeof v === 'number') {
+        const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+        if (!isNaN(d)) return d.toISOString().slice(0, 10);
+      }
+      const s = String(v).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+      return s;
+    }
+  }
+  return '';
+}
+
+function pruneOldDuringWorks() {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
+  const cutoffISO = cutoff.toISOString().slice(0, 10);
+  db.duringWorks = db.duringWorks.filter(e => !e.date || e.date >= cutoffISO);
+}
+
 function handleDuringFile(evt) {
   const file = evt.target.files[0]; if (!file) return;
   const prog = document.getElementById('during-prog');
@@ -903,7 +948,7 @@ function handleDuringFile(evt) {
     setTimeout(()=>{
       prog.style.display='none'; fill.style.width='0%';
       try {
-        const wb=XLSX.read(e.target.result,{type:'array'});
+        const wb=XLSX.read(e.target.result,{type:'array', cellDates:true});
         const ws=wb.Sheets[wb.SheetNames[0]];
         const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
         parseDuringRows(rows, file.name);
@@ -919,18 +964,17 @@ function parseDuringRows(rows, filename) {
     resident:  getCol(r,'Resident','ResidentName','Name'),
     trade:     getCol(r,'Trade','Works','Work Type','Job','Description'),
     timeframe: getCol(r,'Timeframe','Time','AM/PM','Period')||'AM',
-    date:      getCol(r,'Date','WorkDate','Work Date','Day','Scheduled Date')||'',
+    date:      extractDateISO(r,'Date','WorkDate','Work Date','Day','Scheduled Date'),
     note:      getCol(r,'Note','Notes','Additional','Info')||'',
   })).filter(r=>r.flat&&r.trade);
   if (!parsed.length) { showToast('during-parse-toast','No valid rows found.','t-r'); return; }
   duringWorksList = parsed;
   renderDuringTable();
-  showToast('during-parse-toast',`✓ ${filename} — ${parsed.length} entries loaded.`,'t-g',5000);
+  showToast('during-parse-toast',`✓ ${filename} — ${parsed.length} entries loaded. Review the dates below, then click Save to calendar.`,'t-g',6000);
 }
 
 function loadDuringDemo() {
-  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-  const d = tomorrow.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+  const d = todayISO();
   duringWorksList = [
     {flat:'Flat 14',resident:'Sarah Ahmed', trade:'Tiler',       timeframe:'AM',date:d,note:'Kitchen floor — please clear the area'},
     {flat:'Flat 9', resident:'James Obi',   trade:'Electrician', timeframe:'PM',date:d,note:'Second fix electrics'},
@@ -953,7 +997,7 @@ function renderDuringTable() {
       <td><input style="width:65px;border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.flat}" onchange="duringWorksList[${i}].flat=this.value"/></td>
       <td><input style="width:90px;border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.resident}" onchange="duringWorksList[${i}].resident=this.value"/></td>
       <td><input style="width:100px;border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.trade}" onchange="duringWorksList[${i}].trade=this.value"/></td>
-      <td><input style="width:90px;border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.date}" placeholder="e.g. Mon 23 Jun" onchange="duringWorksList[${i}].date=this.value"/></td>
+      <td><input type="date" style="border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" value="${e.date}" onchange="duringWorksList[${i}].date=this.value"/></td>
       <td><select style="border:1px solid var(--dg);border-radius:5px;padding:3px 5px;font-size:11px" onchange="duringWorksList[${i}].timeframe=this.value">
         <option${e.timeframe==='AM'?' selected':''}>AM</option>
         <option${e.timeframe==='PM'?' selected':''}>PM</option>
@@ -968,57 +1012,175 @@ function addDuringEntry() {
   renderDuringTable();
 }
 
-function publishDuring() {
-  if (!duringWorksList.length) { showToast('during-publish-toast','Add at least one entry first.','t-r'); return; }
-  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-  const dateStr  = tomorrow.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
-  db.duringWorks = duringWorksList.map(e => ({...e, publishedAt:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}));
-  db.duringWorks.forEach(e => {
-    const sched = db.schedule.find(s => s.flat === e.flat);
-    const mobile = e.mobile || (sched && sched.mobile);
-    if (mobile) {
-      sendSMS(mobile, `Hi ${e.resident.split(' ')[0]}, tomorrow${e.date?' ('+e.date+')':''} the ${e.trade} is scheduled at ${e.flat} in the ${e.timeframe}. Please ensure access is available. Durkan Regen. This is an automated message — please do not reply to this number.`);
-    }
-  });
-  showToast('during-publish-toast','✓ Published — residents notified of tomorrow\'s works.','t-g',5000);
+function populateQuickAddDuringDropdown() {
+  const sel = document.getElementById('qa-during-flat');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Select a property...</option>' +
+    db.schedule.map((e, i) => `<option value="${i}">${e.flat} — ${e.resident}</option>`).join('');
+}
+
+async function quickAddDuringWork() {
+  const idx = document.getElementById('qa-during-flat').value;
+  const trade = document.getElementById('qa-during-trade').value.trim();
+  const date = document.getElementById('qa-during-date').value;
+  const timeframe = document.getElementById('qa-during-timeframe').value;
+  const note = document.getElementById('qa-during-note').value.trim();
+  const toast = 'qa-during-toast';
+
+  if (idx === '') { showToast(toast, 'Please select a property.', 't-r'); return; }
+  if (!trade) { showToast(toast, 'Please enter a trade.', 't-r'); return; }
+  if (!date) { showToast(toast, 'Please choose a date.', 't-r'); return; }
+
+  const e = db.schedule[Number(idx)];
+  const newEntry = { flat: e.flat, resident: e.resident, trade, date, timeframe, note };
+
+  const existingIdx = db.duringWorks.findIndex(x => x.flat === e.flat && x.date === date);
+  if (existingIdx > -1) db.duringWorks[existingIdx] = newEntry;
+  else db.duringWorks.push(newEntry);
+  pruneOldDuringWorks();
+
+  showToast(toast, 'Saving...', 't-j', 8000);
+  const saveResult = await saveDuringWorksToDB();
+  if (!saveResult.success) {
+    showToast(toast, `⚠ Not saved — ${saveResult.error}`, 't-r', 8000);
+    return;
+  }
+
+  showToast(toast, `✓ Added to the calendar for ${formatDateNice(date)}.`, 't-g', 4000);
+  document.getElementById('qa-during-trade').value = '';
+  document.getElementById('qa-during-note').value = '';
   renderDuringWorksRlo();
   if (db.currentResident) { renderDuringWorksResident(); updateDuringBadge(); }
+}
+
+async function publishDuring() {
+  if (!duringWorksList.length) { showToast('during-publish-toast','Add at least one entry first.','t-r'); return; }
+  showToast('during-publish-toast','Saving...','t-j',8000);
+
+  // Merge into the existing calendar — replace any entry already stored for
+  // the same property on the same date, otherwise add it as new. Nothing
+  // else in the calendar gets touched, so uploading one day's correction
+  // doesn't disturb the rest of the programme.
+  duringWorksList.forEach(newE => {
+    const idx = db.duringWorks.findIndex(e => e.flat === newE.flat && e.date === newE.date);
+    if (idx > -1) db.duringWorks[idx] = { ...db.duringWorks[idx], ...newE };
+    else db.duringWorks.push({ ...newE });
+  });
+  pruneOldDuringWorks();
+
+  const saveResult = await saveDuringWorksToDB();
+  if (!saveResult.success) {
+    showToast('during-publish-toast', `⚠ Not saved — the database rejected it: ${saveResult.error}`, 't-r', 9000);
+    return;
+  }
+
+  duringWorksList = [];
+  renderDuringTable();
+  const reviewPanel = document.getElementById('during-review-panel');
+  if (reviewPanel) reviewPanel.style.display = 'none';
+
+  showToast('during-publish-toast', `✓ Saved to the calendar — ${db.duringWorks.length} upcoming visit${db.duringWorks.length!==1?'s':''} in total. Use "Send today's reminders" below to text residents whose visit is today.`, 't-g', 7000);
+  renderDuringWorksRlo();
+  if (db.currentResident) { renderDuringWorksResident(); updateDuringBadge(); }
+}
+
+async function sendTodayDuringReminders() {
+  const today = todayISO();
+  const matches = db.duringWorks.filter(e => e.date === today);
+  const toast = 'during-sms-toast';
+  if (!matches.length) { showToast(toast, `No works scheduled for today (${formatDateNice(today)}).`, 't-j', 5000); return; }
+
+  showToast(toast, `Sending ${matches.length} reminder${matches.length!==1?'s':''}...`, 't-j', 10000);
+  let sent = 0, skipped = 0, failed = 0;
+  for (const e of matches) {
+    const sched = db.schedule.find(s => s.flat === e.flat);
+    const mobile = e.mobile || (sched && sched.mobile);
+    if (!mobile) { skipped++; continue; }
+    const result = await sendSMS(mobile, `Hi ${e.resident.split(' ')[0]}, today the ${e.trade} is scheduled at ${e.flat} in the ${e.timeframe}. Please ensure access is available. Durkan Regen. This is an automated message — please do not reply to this number.`);
+    if (result && result.success) sent++; else failed++;
+  }
+  const parts = [];
+  if (sent) parts.push(`${sent} sent`);
+  if (skipped) parts.push(`${skipped} skipped (no mobile)`);
+  if (failed) parts.push(`${failed} failed`);
+  showToast(toast, parts.join(', ') + '.', failed ? 't-r' : 't-g', 6000);
+}
+
+async function saveDuringWorksToDB() {
+  try {
+    // db.duringWorks holds the full current calendar in memory at this point,
+    // so a clean wipe-and-reinsert keeps the database exactly in sync with it.
+    const { error: delError } = await sb.from('during_works').delete().not('id', 'is', null);
+    if (delError) return { success: false, error: delError.message };
+    if (!db.duringWorks.length) return { success: true };
+    const rows = db.duringWorks.map(e => ({
+      flat: e.flat, resident: e.resident, trade: e.trade,
+      date_label: e.date || null, timeframe: e.timeframe, note: e.note || null,
+    }));
+    const { error } = await sb.from('during_works').insert(rows);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+async function loadDuringWorksFromDB() {
+  try {
+    const { data, error } = await sb.from('during_works').select('*').order('date_label');
+    if (error) { console.warn('Load during works failed:', error.message); return; }
+    db.duringWorks = (data || []).map(r => ({
+      flat: r.flat, resident: r.resident, trade: r.trade,
+      date: r.date_label || '', timeframe: r.timeframe, note: r.note || '',
+    }));
+  } catch (err) {
+    console.warn('Load during works error:', err.message);
+  }
 }
 
 function renderDuringWorksRlo() {
   const panel = document.getElementById('during-current-panel');
   const list  = document.getElementById('during-current-list');
-  const lbl   = document.getElementById('during-live-date');
   if (!panel||!list) return;
-  if (!db.duringWorks.length) { panel.style.display='none'; return; }
+  const today = todayISO();
+  const upcoming = db.duringWorks
+    .filter(e => e.date >= today)
+    .sort((a,b) => (a.date+a.timeframe).localeCompare(b.date+b.timeframe));
+  if (!upcoming.length) { panel.style.display='none'; return; }
   panel.style.display='block';
-  if (lbl && db.duringWorks[0]) lbl.textContent = db.duringWorks[0].forDate;
-  list.innerHTML = db.duringWorks.map(e=>`
-    <div style="background:var(--dbg);border-radius:9px;padding:10px 12px;margin-bottom:7px;display:flex;align-items:flex-start;gap:10px">
-      <div style="background:${e.timeframe==='AM'?'var(--dbl)':'var(--amberbg)'};color:${e.timeframe==='AM'?'var(--db)':'var(--amber)'};border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;flex-shrink:0;text-align:center">
-        ${e.date?`<div style="font-size:9px;font-weight:600;opacity:.8">${e.date}</div>`:''}
-        ${e.timeframe}
+
+  const groups = {};
+  upcoming.forEach(e => { (groups[e.date] = groups[e.date] || []).push(e); });
+
+  list.innerHTML = Object.keys(groups).sort().map(date => `
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--db);margin-bottom:6px;display:flex;align-items:center;gap:6px">
+        ${formatDateNice(date)}
+        ${date===today?'<span class="spill sp-g" style="font-size:9px">TODAY</span>':''}
       </div>
-      <div><div style="font-size:13px;font-weight:600;color:var(--db)">${e.flat} — ${e.trade}</div><div style="font-size:11px;color:var(--dgd)">${e.resident}${e.note?' · '+e.note:''}</div></div>
+      ${groups[date].map(e=>`
+        <div style="background:var(--dbg);border-radius:9px;padding:10px 12px;margin-bottom:7px;display:flex;align-items:flex-start;gap:10px">
+          <div style="background:${e.timeframe==='AM'?'var(--dbl)':'var(--amberbg)'};color:${e.timeframe==='AM'?'var(--db)':'var(--amber)'};border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;flex-shrink:0">${e.timeframe}</div>
+          <div><div style="font-size:13px;font-weight:600;color:var(--db)">${e.flat} — ${e.trade}</div><div style="font-size:11px;color:var(--dgd)">${e.resident}${e.note?' · '+e.note:''}</div></div>
+        </div>`).join('')}
     </div>`).join('');
 }
 
 function renderDuringWorksResident() {
   const body = document.getElementById('r-during-body'); if (!body||!db.currentResident) return;
-  const myWorks = db.duringWorks.filter(e=>e.flat===db.currentResident.flat);
-  if (!db.duringWorks.length||!myWorks.length) {
-    body.innerHTML='<div class="empty-msg">No works scheduled for tomorrow yet.<br>Your RLO will update this daily.</div>'; return;
+  const today = todayISO();
+  const myWorks = db.duringWorks.filter(e=>e.flat===db.currentResident.flat && e.date===today);
+  if (!myWorks.length) {
+    body.innerHTML='<div class="empty-msg">No works scheduled for today.<br>Check back tomorrow, or ask your RLO.</div>'; return;
   }
-  const dateStr = db.duringWorks[0].forDate;
   body.innerHTML=`
     <div class="vc" style="padding:11px;margin-bottom:10px">
-      <div style="font-size:10px;color:var(--dgd);margin-bottom:4px">Tomorrow's works</div>
-      <div style="font-size:15px;font-weight:700;color:var(--db)">${dateStr}</div>
+      <div style="font-size:10px;color:var(--dgd);margin-bottom:4px">Today's works</div>
+      <div style="font-size:15px;font-weight:700;color:var(--db)">${formatDateNice(today)}</div>
     </div>
     ${myWorks.map(e=>`
       <div class="vc" style="padding:12px;margin-bottom:8px;border-left:3px solid ${e.timeframe==='AM'?'var(--db)':'var(--amber)'}">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-          ${e.date?`<div style="font-size:11px;font-weight:600;color:var(--dgd)">${e.date}</div>`:''}
           <div style="background:${e.timeframe==='AM'?'var(--dbl)':'var(--amberbg)'};color:${e.timeframe==='AM'?'var(--db)':'var(--amber)'};border-radius:7px;padding:3px 10px;font-size:12px;font-weight:700">${e.timeframe}</div>
           <div style="font-size:14px;font-weight:700;color:var(--db)">${e.trade}</div>
         </div>
@@ -1034,11 +1196,12 @@ function renderDuringWorksResident() {
 
 function updateDuringBadge() {
   if (!db.currentResident) return;
-  const my    = db.duringWorks.filter(e=>e.flat===db.currentResident.flat);
+  const today = todayISO();
+  const my    = db.duringWorks.filter(e=>e.flat===db.currentResident.flat && e.date===today);
   const badge = document.getElementById('r-during-n');
   const sub   = document.getElementById('r-during-sub');
-  if (my.length) { if(badge)badge.style.display='inline-block'; if(sub)sub.textContent=`${my[0].date?my[0].date+' ':''} ${my[0].timeframe} — ${my[0].trade}`; }
-  else           { if(badge)badge.style.display='none'; if(sub)sub.textContent='Tomorrow\'s works schedule'; }
+  if (my.length) { if(badge)badge.style.display='inline-block'; if(sub)sub.textContent=`${my[0].timeframe} — ${my[0].trade}`; }
+  else           { if(badge)badge.style.display='none'; if(sub)sub.textContent='Today\'s works schedule'; }
 }
 
 /* ============================================================
