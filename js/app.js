@@ -360,11 +360,7 @@ function parseRows(rows, filename) {
       resident:  getCol(r,'Resident','ResidentName','Name','Tenant'),
       workType:  getCol(r,'WorkType','Work Type','Work','Type','Job'),
       mobile:    getCol(r,'Mobile','MobileNumber','Mobile Number','Phone','Tel','Contact'),
-      slots:     [
-        getCol(r,'Date1','Date 1'),getCol(r,'Date2','Date 2'),getCol(r,'Date3','Date 3'),
-        getCol(r,'Date4','Date 4'),getCol(r,'Date5','Date 5'),getCol(r,'Date6','Date 6'),
-        getCol(r,'Date7','Date 7'),getCol(r,'Date8','Date 8'),
-      ].filter(Boolean),
+      slots:     Array.from({length: 24}, (_, n) => getCol(r, `Date${n+1}`, `Date ${n+1}`)).filter(Boolean),
       status: existing ? existing.status : 'pending',
       confirmedDate: existing ? existing.confirmedDate : '',
       locked: existing ? existing.locked : false,
@@ -897,7 +893,15 @@ function sendNewSlots(i) {
    DURING WORKS
 ============================================================ */
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// Converts any Date object to a yyyy-mm-dd string using its LOCAL calendar
+// date — never .toISOString(), which silently shifts to UTC and can roll
+// the date onto the wrong day depending on timezone and time of day.
+function localISO(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 function formatDateNice(iso) {
@@ -914,7 +918,9 @@ function extractDateISO(row, ...keys) {
     const f = Object.keys(row).find(rk => rk.toLowerCase().replace(/[\s_-]/g,'') === k.toLowerCase().replace(/[\s_-]/g,''));
     if (f && row[f] !== undefined && row[f] !== '') {
       const v = row[f];
-      if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+      if (v instanceof Date && !isNaN(v)) {
+        return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+      }
       if (typeof v === 'number') {
         const d = new Date(Math.round((v - 25569) * 86400 * 1000));
         if (!isNaN(d)) return d.toISOString().slice(0, 10);
@@ -931,7 +937,7 @@ function extractDateISO(row, ...keys) {
 
 function pruneOldDuringWorks() {
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
-  const cutoffISO = cutoff.toISOString().slice(0, 10);
+  const cutoffISO = localISO(cutoff);
   db.duringWorks = db.duringWorks.filter(e => !e.date || e.date >= cutoffISO);
 }
 
@@ -1086,7 +1092,7 @@ async function publishDuring() {
 
 async function sendTomorrowDuringReminders() {
   const t = new Date(); t.setDate(t.getDate() + 1);
-  const tomorrow = t.toISOString().slice(0, 10);
+  const tomorrow = localISO(t);
   const matches = db.duringWorks.filter(e => e.date === tomorrow);
   const toast = 'during-sms-toast';
   if (!matches.length) { showToast(toast, `No works scheduled for tomorrow (${formatDateNice(tomorrow)}).`, 't-j', 5000); return; }
@@ -2554,7 +2560,7 @@ function stampWorkElementAccessLetter(i, varKey, stage) {
   const el = e.workElements.find(x => x.name === nameMatch);
   if (!el) return;
   const field = stage === '1st' ? 'access1Sent' : stage === '2nd' ? 'access2Sent' : 'access3Sent';
-  const today = new Date().toISOString().slice(0, 10); // yyyy-mm-dd, matches the date picker fields
+  const today = localISO(new Date()); // yyyy-mm-dd, local date — matches the date picker fields
   el[field] = today;
   if (el.id) {
     sb.from('work_elements').update(workElementLocalToRow(e.id, el)).eq('id', el.id)
