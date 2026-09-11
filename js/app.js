@@ -130,15 +130,14 @@ function rNav(i) {
 /* ============================================================
    RLO NAV
 ============================================================ */
-const rloPageMap = { 1:'bp-dashboard', 2:'bp-upload', 3:'bp-during', 4:'bp-defects', 5:'bp-messages', 6:'bp-reports', 7:'bp-letters', 8:'bp-colours', 9:'bp-updates', 10:'bp-mandatory' };
+const rloPageMap = { 1:'bp-dashboard', 2:'bp-upload', 3:'bp-during', 4:'bp-defects', 6:'bp-reports', 7:'bp-letters', 8:'bp-colours', 9:'bp-updates', 10:'bp-mandatory' };
 const rloNavDef  = [
   { i:1, icon:'ti-layout-dashboard', label:'Dashboard' },
   { i:2, icon:'ti-upload',           label:'Pre Works Schedule' },
   { i:3, icon:'ti-hard-hat',         label:'During Works' },
   { i:8, icon:'ti-photo',            label:'Completed Work Photos' },
   { i:9, icon:'ti-speakerphone',     label:'Updates & Events' },
-  { i:4, icon:'ti-alert-triangle',   label:'Issues' },
-  { i:5, icon:'ti-mail',             label:'Messages' },
+  { i:4, icon:'ti-alert-triangle',   label:'Issues & Messages' },
   { i:7, icon:'ti-mail-forward',     label:'Resident Letters' },
   { i:10, icon:'ti-file-text',       label:'Mandatory Letters' },
   { i:6, icon:'ti-chart-bar',        label:'Reports' },
@@ -176,7 +175,7 @@ function bNav(i) {
     const dateField = document.getElementById('qa-during-date');
     if (dateField && !dateField.value) dateField.value = todayISO();
   }
-  if (i === 4) renderRloDefects();
+  if (i === 4) { renderRloDefects(); renderInbox(); }
   if (i === 6) renderReports();
   if (i === 7) renderLettersPage();
   if (i === 8) renderColoursRlo();
