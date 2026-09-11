@@ -433,6 +433,7 @@ function scheduleRowToLocal(r) {
     confirmedDate: r.confirmed_date || '',
     locked: r.locked,
     accessCode: r.access_code,
+    completed: !!r.completed,
     contactLog: [],
   };
 }
@@ -450,6 +451,7 @@ function scheduleRowToDb(e) {
     confirmed_date: e.confirmedDate || null,
     locked: !!e.locked,
     access_code: e.accessCode,
+    completed: !!e.completed,
   };
 }
 
@@ -795,7 +797,7 @@ function renderDashboard() {
     const workElBtn = `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openWorkElements(${i})"><i class="ti ti-list-check"></i> Work elements${elCount?' ('+elCount+')':''}</button>`;
     const lettersBtn = `<button class="btn btn-o btn-sm" style="margin-top:4px;width:100%" onclick="openFlatLetters(${i})"><i class="ti ti-mail-opened"></i> Letters</button>`;
     return `<tr style="${rowBg}">
-      <td style="font-size:10px;color:var(--dgd);font-family:monospace">${e.uprn||'—'}</td><td><strong>${e.flat}</strong></td><td>${e.resident}${e.mobile?`<div style="font-size:11px;color:var(--dj);margin-top:2px"><a href="tel:${e.mobile.replace(/\s/g,'')}" style="color:var(--dj);text-decoration:none">${e.mobile}</a></div>`:''}<div style="margin-top:3px">${letterBadgesFor(e.contactLog)}</div></td><td>${e.workType}</td>
+      <td style="font-size:10px;color:var(--dgd);font-family:monospace">${e.uprn||'—'}</td><td><strong>${e.flat}</strong></td><td style="text-align:center"><input type="checkbox" ${e.completed?'checked':''} onchange="toggleScheduleCompleted(${i})" style="width:17px;height:17px;cursor:pointer"/></td><td>${e.resident}${e.mobile?`<div style="font-size:11px;color:var(--dj);margin-top:2px"><a href="tel:${e.mobile.replace(/\s/g,'')}" style="color:var(--dj);text-decoration:none">${e.mobile}</a></div>`:''}<div style="margin-top:3px">${letterBadgesFor(e.contactLog)}</div></td><td>${e.workType}</td>
       <td><span class="code-chip">${e.accessCode}</span></td>
       <td>${sPill[e.status]||''}</td>
       <td>${e.confirmedDate?`<strong style="color:var(--dj)">${e.confirmedDate}</strong>`:`<span style="color:var(--dg)">—</span>`}</td>
@@ -871,6 +873,12 @@ function downloadDashboardCSV() {
   a.click();
   URL.revokeObjectURL(url);
   showToast('dash-download-toast', `✓ Downloaded — ${rows.length} row${rows.length!==1?'s':''} across ${db.schedule.length} flat${db.schedule.length!==1?'s':''}.`, 't-g', 5000);
+}
+
+function toggleScheduleCompleted(i) {
+  const e = db.schedule[i];
+  e.completed = !e.completed;
+  updateScheduleRow(e);
 }
 
 function unlockSlot(i) {
